@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { User, Shield, Key, Lock, MonitorSmartphone, Link as LinkIcon, Database, Check, ChevronRight, Clock, UserPlus, KeyRound, Edit3, Hexagon, DatabaseBackup } from 'lucide-react';
+import { User, Shield, Key, Lock, MonitorSmartphone, Link as LinkIcon, Database, Check, ChevronRight, Clock, UserPlus, KeyRound, Edit3, Hexagon, DatabaseBackup, Settings } from 'lucide-react';
 
 export function SettingsRightPanel() {
   
