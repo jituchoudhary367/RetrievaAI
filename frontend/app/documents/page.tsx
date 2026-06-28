@@ -78,7 +78,7 @@ export default function DocumentsPage() {
     }
   ];
 
-  const selectedDoc = selectedDocId ? mockDocs.find(d => d.id === selectedDocId) : null;
+  const selectedDoc = selectedDocId ? mockDocuments.find(d => d.id === selectedDocId) : null;
 
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-hidden">
@@ -92,7 +92,7 @@ export default function DocumentsPage() {
           <div className="flex flex-col p-6 lg:p-8 gap-6 max-w-[1200px] mx-auto w-full">
             <DocumentStatsRow />
             <DocumentListArea 
-              documents={mockDocs} 
+              documents={mockDocuments} 
               selectedDocId={selectedDocId} 
               onSelectDoc={setSelectedDocId} 
             />
