@@ -48,33 +48,29 @@ export default function DocumentsPage() {
       chunks: 186,
       size: "5.7 MB",
       uploaded: "May 22, 2024 11:42 AM",
-      type: "md",
-      title: "RAG Pipeline Deep Dive.md",
-      quality: 92,
-      source: "GitHub Integration",
-      tags: ["pipeline", "technical", "docs"],
-      date: "May 22, 2024",
-      size: "85 KB"
+      quality: 0.92
     },
     {
       id: "doc4",
-      type: "pptx",
-      title: "Advanced Retrieval Techniques.pptx",
-      quality: 88,
-      source: "Confluence",
+      type: "pdf",
+      title: "Advanced Retrieval Techniques.pdf",
       tags: ["retrieval", "presentation"],
-      date: "May 20, 2024",
-      size: "5.7 MB"
+      source: "/docs/retrieval",
+      chunks: 512,
+      size: "3.2 MB",
+      uploaded: "May 21, 2024 03:20 PM",
+      quality: 0.88
     },
     {
       id: "doc5",
       type: "csv",
       title: "Product QA Dataset.csv",
-      quality: 100,
-      source: "S3 Bucket",
       tags: ["dataset", "testing", "qa"],
-      date: "May 19, 2024",
-      size: "2.1 MB"
+      source: "S3 Bucket",
+      chunks: 1245,
+      size: "2.1 MB",
+      uploaded: "May 19, 2024 09:10 AM",
+      quality: 1.00
     }
   ];
 
