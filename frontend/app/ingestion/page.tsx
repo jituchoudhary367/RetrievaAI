@@ -96,16 +96,15 @@ export default function IngestionPage() {
   const selectedJob = selectedJobId ? mockJobs.find(j => j.id === selectedJobId) : null;
 
   return (
-    <div className="flex h-full w-full bg-background overflow-hidden">
-      {/* Center Area (Upload + List) */}
-      <div className="flex-1 flex flex-col min-w-0 border-r border-border relative bg-background">
-        <TopBar 
-          title="Ingestion"
-          subtitle="Upload, process and index documents into your knowledge base"
-        />
-        
-        <div className="flex-1 overflow-y-auto scrollbar-thin flex flex-col items-center">
-          <div className="w-full max-w-[1200px] p-6 lg:p-8 flex flex-col gap-6">
+    <div className="flex flex-col h-full w-full bg-background overflow-hidden">
+      <TopBar 
+        title="Ingestion"
+        subtitle="Upload, process and index documents into your knowledge base"
+      />
+      <div className="flex-1 flex min-h-0">
+        {/* Center Area (Upload + List) */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin bg-background relative">
+          <div className="flex flex-col p-6 lg:p-8 gap-6 max-w-[1200px] mx-auto w-full">
             <IngestionStatsRow />
             
             <div className="flex flex-col space-y-4">
@@ -120,14 +119,14 @@ export default function IngestionPage() {
             />
           </div>
         </div>
-      </div>
 
-      {/* Right Sidebar (Details) */}
-      {selectedJob && (
-        <div className="w-80 flex-shrink-0 bg-[#0d1117] overflow-y-auto hidden lg:flex flex-col border-l border-[#30363d] animate-in slide-in-from-right-16 duration-300">
-           <IngestionDetailPanel job={selectedJob} onClose={() => setSelectedJobId(null)} />
-        </div>
-      )}
+        {/* Right Sidebar (Details) */}
+        {selectedJob && (
+          <div className="w-80 flex-shrink-0 bg-[#0d1117] overflow-y-auto hidden lg:flex flex-col border-l border-[#30363d] animate-in slide-in-from-right-16 duration-300">
+             <IngestionDetailPanel job={selectedJob} onClose={() => setSelectedJobId(null)} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

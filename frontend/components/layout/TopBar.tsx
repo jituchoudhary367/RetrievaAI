@@ -13,11 +13,12 @@ import { ResponseMetadata } from '../../lib/types/models';
 interface TopBarProps {
   title: string | null;
   subtitle?: string;
+  searchPlaceholder?: string;
   metadata?: ResponseMetadata;
   onUpdateTitle?: (newTitle: string) => void;
 }
 
-export function TopBar({ title, subtitle, onUpdateTitle }: TopBarProps) {
+export function TopBar({ title, subtitle, searchPlaceholder, onUpdateTitle }: TopBarProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
 
@@ -74,7 +75,7 @@ export function TopBar({ title, subtitle, onUpdateTitle }: TopBarProps) {
           </div>
           <input 
             type="text" 
-            placeholder="Search anything..." 
+            placeholder={searchPlaceholder || "Search anything..."} 
             disabled
             className="block w-full pl-10 pr-12 py-1.5 border border-[#30363d] rounded-md leading-5 bg-[#161b22] text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:bg-background focus:border-primary transition-colors cursor-not-allowed" 
           />
