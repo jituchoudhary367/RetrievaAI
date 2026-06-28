@@ -1,0 +1,205 @@
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "backend"
+version = "0.1.0"
+description = "Production RAG service — FastAPI + Qdrant + Redis + Hybrid Search + CRAG + Agents"
+readme = "README.md"
+packages = [
+    { include = "app" },
+    { include = "routes" },
+    { include = "services" },
+    { include = "retrieval" },
+    { include = "agents" },
+    { include = "tools" },
+    { include = "prompts" },
+    { include = "security" },
+    { include = "pipeline" },
+]
+
+# Pinned to match the Dockerfile's `python:3.11-slim` base image exactly.
+# A `>=3.12` constraint here (as in the previous stub pyproject.toml) would
+# make `poetry install` fail inside the Docker build, since the image only
+# ships 3.11.
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# --- Core runtime (always installed) ---
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.32.0" }
+pydantic = "^2.9.0"
+pydantic-settings = "^2.6.0"
+redis = "^5.2.0"
+qdrant-client = "^1.12.0"
+httpx = "^0.27.0"
+structlog = "^24.4.0"
+prometheus-client = "^0.21.0"
+opentelemetry-sdk = "^1.28.0"
+opentelemetry-exporter-otlp = "^1.28.0"
+
+# --- Optional: embedding/LLM providers (services/, pipeline/embedder.py) ---
+openai = { version = "^1.54.0", optional = true }
+sentence-transformers = { version = "^3.2.0", optional = true }
+cohere = { version = "^5.11.0", optional = true }
+
+# --- Optional: PDF extraction/OCR (pipeline/extractors/pdf_extractor.py) ---
+pypdf = { version = "^5.1.0", optional = true }
+pdfplumber = { version = "^0.11.0", optional = true }
+pdf2image = { version = "^1.17.0", optional = true }
+pytesseract = { version = "^0.3.13", optional = true }
+Pillow = { version = "^11.0.0", optional = true }
+
+# --- Optional: HTML extraction (pipeline/extractors/html_extractor.py) ---
+beautifulsoup4 = { version = "^4.12.0", optional = true }
+lxml = { version = "^5.3.0", optional = true }
+trafilatura = { version = "^1.12.0", optional = true }
+
+# --- Optional: DOCX extraction (pipeline/extractors/docx_extractor.py) ---
+python-docx = { version = "^1.1.0", optional = true }
+
+# --- Optional: exact token counting (pipeline/chunker.py, embedder.py) ---
+tiktoken = { version = "^0.8.0", optional = true }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
+pytest-cov = "^6.0.0"
+httpx = "^0.27.0"
+ruff = "^0.7.0"
+mypy = "^1.13.0"
+
+# Extras let `poetry install --extras "<group>"` (or `--extras all`, which
+# the Dockerfile uses by default) pull in only the optional dependencies a
+# given deployment actually needs, instead of forcing every heavy ML/OCR
+# library on every install.
+[tool.poetry.extras]
+pdf = ["pypdf", "pdfplumber", "pdf2image", "pytesseract", "Pillow"]
+html = ["beautifulsoup4", "lxml", "trafilatura"]
+docx = ["python-docx"]
+embeddings-openai = ["openai"]
+embeddings-hf = ["sentence-transformers"]
+embeddings-cohere = ["cohere"]
+tokens = ["tiktoken"]
+all = [
+    "pypdf", "pdfplumber", "pdf2image", "pytesseract", "Pillow",
+    "beautifulsoup4", "lxml", "trafilatura",
+    "python-docx",
+    "openai", "sentence-transformers", "cohere",
+    "tiktoken",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"][build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "backend"
+version = "0.1.0"
+description = "Production RAG service — FastAPI + Qdrant + Redis + Hybrid Search + CRAG + Agents"
+readme = "README.md"
+packages = [
+    { include = "app" },
+    { include = "routes" },
+    { include = "services" },
+    { include = "retrieval" },
+    { include = "agents" },
+    { include = "tools" },
+    { include = "prompts" },
+    { include = "security" },
+    { include = "pipeline" },
+]
+
+# Pinned to match the Dockerfile's `python:3.11-slim` base image exactly.
+# A `>=3.12` constraint here (as in the previous stub pyproject.toml) would
+# make `poetry install` fail inside the Docker build, since the image only
+# ships 3.11.
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# --- Core runtime (always installed) ---
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.32.0" }
+pydantic = "^2.9.0"
+pydantic-settings = "^2.6.0"
+redis = "^5.2.0"
+qdrant-client = "^1.12.0"
+httpx = "^0.27.0"
+structlog = "^24.4.0"
+prometheus-client = "^0.21.0"
+opentelemetry-sdk = "^1.28.0"
+opentelemetry-exporter-otlp = "^1.28.0"
+
+# --- Optional: embedding/LLM providers (services/, pipeline/embedder.py) ---
+openai = { version = "^1.54.0", optional = true }
+sentence-transformers = { version = "^3.2.0", optional = true }
+cohere = { version = "^5.11.0", optional = true }
+
+# --- Optional: PDF extraction/OCR (pipeline/extractors/pdf_extractor.py) ---
+pypdf = { version = "^5.1.0", optional = true }
+pdfplumber = { version = "^0.11.0", optional = true }
+pdf2image = { version = "^1.17.0", optional = true }
+pytesseract = { version = "^0.3.13", optional = true }
+Pillow = { version = "^11.0.0", optional = true }
+
+# --- Optional: HTML extraction (pipeline/extractors/html_extractor.py) ---
+beautifulsoup4 = { version = "^4.12.0", optional = true }
+lxml = { version = "^5.3.0", optional = true }
+trafilatura = { version = "^1.12.0", optional = true }
+
+# --- Optional: DOCX extraction (pipeline/extractors/docx_extractor.py) ---
+python-docx = { version = "^1.1.0", optional = true }
+
+# --- Optional: exact token counting (pipeline/chunker.py, embedder.py) ---
+tiktoken = { version = "^0.8.0", optional = true }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
+pytest-cov = "^6.0.0"
+httpx = "^0.27.0"
+ruff = "^0.7.0"
+mypy = "^1.13.0"
+
+# Extras let `poetry install --extras "<group>"` (or `--extras all`, which
+# the Dockerfile uses by default) pull in only the optional dependencies a
+# given deployment actually needs, instead of forcing every heavy ML/OCR
+# library on every install.
+[tool.poetry.extras]
+pdf = ["pypdf", "pdfplumber", "pdf2image", "pytesseract", "Pillow"]
+html = ["beautifulsoup4", "lxml", "trafilatura"]
+docx = ["python-docx"]
+embeddings-openai = ["openai"]
+embeddings-hf = ["sentence-transformers"]
+embeddings-cohere = ["cohere"]
+tokens = ["tiktoken"]
+all = [
+    "pypdf", "pdfplumber", "pdf2image", "pytesseract", "Pillow",
+    "beautifulsoup4", "lxml", "trafilatura",
+    "python-docx",
+    "openai", "sentence-transformers", "cohere",
+    "tiktoken",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
