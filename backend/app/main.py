@@ -10,6 +10,7 @@ from app.models import ErrorResponse, ErrorDetail
 from routes.health import router as health_router
 from routes.search import router as search_router
 from routes.query import router as query_router
+from routes.ingest import router as ingest_router
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)  # Mounted at root: /health, /ready, /live
     app.include_router(search_router, prefix=settings.api_v1_prefix)
     app.include_router(query_router, prefix=settings.api_v1_prefix)
+    app.include_router(ingest_router) # The ingest router itself already has prefix="/api/v1/ingest"
 
     return app
 

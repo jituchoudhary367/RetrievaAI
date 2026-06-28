@@ -25,7 +25,7 @@ from retrieval.filters import RetrievalError
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1", tags=["query"])
+router = APIRouter(tags=["query"])
 
 # Dependency to get pipeline instance
 def get_pipeline() -> RAGPipeline:

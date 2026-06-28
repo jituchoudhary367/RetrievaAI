@@ -16,7 +16,7 @@ export async function streamQuery(
   signal?: AbortSignal
 ): Promise<void> {
   const req = { ...request, stream: true };
-  const url = `${apiBaseUrl}/api/query`;
+  const url = `${apiBaseUrl}/api/stream`;
 
   const response = await fetch(url, {
     method: "POST",

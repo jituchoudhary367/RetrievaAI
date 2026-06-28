@@ -7,6 +7,7 @@ export function useChat() {
   const [citations, setCitations] = useState<Citation[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [metadata, setMetadata] = useState<any>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -68,6 +69,17 @@ export function useChat() {
             }
             break;
           case "end":
+            if (chunk.metadata) {
+              setMetadata(chunk.metadata);
+              setMessages((prev) => {
+                const newMessages = [...prev];
+                const lastIdx = newMessages.length - 1;
+                if (newMessages[lastIdx].role === "assistant") {
+                  newMessages[lastIdx].metadata = chunk.metadata;
+                }
+                return newMessages;
+              });
+            }
             setIsStreaming(false);
             break;
           case "tool_call":
@@ -90,5 +102,5 @@ export function useChat() {
     []
   );
 
-  return { messages, sendMessage, isStreaming, error, citations };
+  return { messages, setMessages, sendMessage, isStreaming, error, citations, metadata };
 }
