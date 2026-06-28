@@ -183,6 +183,7 @@ class ConversationStore:
             api_key = cfg.resolved_llm_api_key()
 
             if provider == "anthropic":
+                # pyrefly: ignore [missing-import]
                 import anthropic  # noqa: PLC0415
                 client = anthropic.Anthropic(api_key=api_key)
                 msg = client.messages.create(
