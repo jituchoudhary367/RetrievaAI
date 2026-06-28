@@ -66,18 +66,35 @@ WORKDIR /build
 # independently of application source-code changes.
 COPY pyproject.toml poetry.lock* /build/
 
+# Which optional dependency groups (see pyproject.toml [tool.poetry.extras])
+# to install into the image. Override at build time with
+# `--build-arg INSTALL_EXTRAS="pdf html"` to ship a smaller image; defaults
+# to "all" so every extractor/embedder/reranker backend works out of the box.
+ARG INSTALL_EXTRAS=all
+
 # Install only runtime dependencies (no dev/test groups, no the project
 # itself yet — `--no-root` skips installing the local package since source
 # hasn't been copied in).
 RUN --mount=type=cache,target=/tmp/poetry_cache \
-    poetry install --only main --no-root --no-ansi
+    poetry install --only main --extras "${INSTALL_EXTRAS}" --no-root --no-ansi
 
-# Now copy the application source and install the project package itself.
+# Now copy every top-level source package — these are siblings of app/ in
+# the repo root, not nested under it, so each must be copied explicitly
+# (a single `COPY app /build/app` would silently omit all of them and
+# produce an image that crashes on import at runtime).
 COPY app /build/app
+COPY routes /build/routes
+COPY services /build/services
+COPY retrieval /build/retrieval
+COPY agents /build/agents
+COPY tools /build/tools
+COPY prompts /build/prompts
+COPY security /build/security
+COPY pipeline /build/pipeline
 COPY README.md /build/README.md
 
 RUN --mount=type=cache,target=/tmp/poetry_cache \
-    poetry install --only main --no-ansi
+    poetry install --only main --extras "${INSTALL_EXTRAS}" --no-ansi
 
 
 # --------------------------------------------------------------------------- #
@@ -117,10 +134,20 @@ RUN apt-get update \
 
 WORKDIR ${APP_HOME}
 
-# Bring over the fully-populated virtualenv and installed package from the
+# Bring over the fully-populated virtualenv and installed packages from the
 # builder stage — no compilers or package managers end up in this image.
+# Every top-level package is copied explicitly (siblings of app/, not
+# nested under it) so nothing is silently left out of the image.
 COPY --from=builder --chown=appuser:appgroup /build/.venv ${APP_HOME}/.venv
 COPY --from=builder --chown=appuser:appgroup /build/app ${APP_HOME}/app
+COPY --from=builder --chown=appuser:appgroup /build/routes ${APP_HOME}/routes
+COPY --from=builder --chown=appuser:appgroup /build/services ${APP_HOME}/services
+COPY --from=builder --chown=appuser:appgroup /build/retrieval ${APP_HOME}/retrieval
+COPY --from=builder --chown=appuser:appgroup /build/agents ${APP_HOME}/agents
+COPY --from=builder --chown=appuser:appgroup /build/tools ${APP_HOME}/tools
+COPY --from=builder --chown=appuser:appgroup /build/prompts ${APP_HOME}/prompts
+COPY --from=builder --chown=appuser:appgroup /build/security ${APP_HOME}/security
+COPY --from=builder --chown=appuser:appgroup /build/pipeline ${APP_HOME}/pipeline
 COPY --chown=appuser:appgroup README.md ${APP_HOME}/README.md
 
 # Writable directories the application needs at runtime (logs, local cache,
