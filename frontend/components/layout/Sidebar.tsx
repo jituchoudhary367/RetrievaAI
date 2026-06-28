@@ -88,7 +88,7 @@ export function Sidebar({
         <NavItem href="/ingestion" icon={DownloadCloud} label="Ingestion" />
         <NavItem href="/analytics" icon={BarChart2} label="Analytics" />
         <NavItem href="/tools" icon={Wrench} label="Tools" />
-        <NavItem href="/settings" icon={Settings} label="Settings" disabled />
+        <NavItem href="/settings" icon={Settings} label="Settings" />
       </div>
 
       {/* Conversations List */}
