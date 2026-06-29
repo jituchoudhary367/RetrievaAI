@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.models import ErrorDetail, ErrorResponse
 from security.auth import AuthError
+from security.rbac import AuthorizationError
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,18 @@ def create_app() -> FastAPI:
         error_response = ErrorResponse(
             status_code=exc.status_code,
             errors=[ErrorDetail(code="UNAUTHORIZED", message=exc.detail)],
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_response.model_dump(by_alias=True),
+            headers=exc.headers
+        )
+
+    @app.exception_handler(AuthorizationError)
+    async def authorization_error_handler(request: Request, exc: AuthorizationError):
+        error_response = ErrorResponse(
+            status_code=exc.status_code,
+            errors=[ErrorDetail(code="FORBIDDEN", message=exc.detail)],
         )
         return JSONResponse(
             status_code=exc.status_code,

@@ -21,6 +21,8 @@ from retrieval.reranker import Reranker
 from pipeline.embedder import Embedder
 from pipeline.indexer import QdrantIndexer, BM25Index
 from security.auth import get_current_user
+from security.rbac import require_permission, Permission
+from app.models import TenantContext
 from db.models.user import User
 from services.telemetry import record_search_event, record_search_click
 from tools.web_search import WebSearchTool
@@ -41,6 +43,7 @@ def get_reranker() -> Reranker:
 async def search(
     request: SearchRequest,
     current_user: User = Depends(get_current_user),
+    tenant_context: TenantContext = Depends(require_permission(Permission.SEARCH_READ)),
     retriever: HybridRetriever = Depends(get_hybrid_retriever),
     reranker: Reranker = Depends(get_reranker)
 ) -> SearchResponse:
@@ -127,6 +130,7 @@ class WebSearchResponse(BaseModel):
 async def search_web(
     request: WebSearchRequest,
     current_user: User = Depends(get_current_user),
+    tenant_context: TenantContext = Depends(require_permission(Permission.SEARCH_READ)),
 ) -> WebSearchResponse:
     start_time = time.perf_counter()
     tool = WebSearchTool()
@@ -153,6 +157,7 @@ class CodeSearchResponse(BaseModel):
 async def search_code(
     request: CodeSearchRequest,
     current_user: User = Depends(get_current_user),
+    tenant_context: TenantContext = Depends(require_permission(Permission.SEARCH_READ)),
 ) -> CodeSearchResponse:
     start_time = time.perf_counter()
     tool = CodeSearchTool()
@@ -174,6 +179,7 @@ class SearchClickRequest(BaseModel):
 async def search_click_event(
     request: SearchClickRequest,
     current_user: User = Depends(get_current_user),
+    tenant_context: TenantContext = Depends(require_permission(Permission.SEARCH_READ)),
 ) -> None:
     # Fire and forget
     asyncio.create_task(record_search_click(

@@ -6,6 +6,7 @@ import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { StreamingIndicator } from "./StreamingIndicator";
 import { SuggestedFollowUps } from "./SuggestedFollowUps";
+import { getRoles } from "../../lib/auth/session";
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -25,6 +26,10 @@ export function ChatWindow({
   onRegenerate
 }: ChatWindowProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  
+  // RBAC checks for UI presentation (backend still enforces strictly)
+  const roles = getRoles();
+  const canChat = roles.includes("member") || roles.includes("admin") || roles.includes("platform_admin");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,7 +75,13 @@ export function ChatWindow({
         </div>
       </div>
       <div className="mx-auto w-full max-w-3xl pb-4 px-4 md:px-0 bg-transparent">
-        <ChatInput onSend={onSendMessage} disabled={isStreaming} />
+        {canChat ? (
+          <ChatInput onSend={onSendMessage} disabled={isStreaming} />
+        ) : (
+          <div className="flex h-12 w-full items-center justify-center rounded-xl border border-[#30363d] bg-[#161b22] px-4 text-sm text-muted-foreground shadow-sm opacity-60 cursor-not-allowed">
+            Your role does not have permission to run queries.
+          </div>
+        )}
       </div>
     </div>
   );

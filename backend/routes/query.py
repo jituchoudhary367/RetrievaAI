@@ -27,7 +27,8 @@ from app.models import QueryRequest, ChatResponse, ErrorResponse, StreamChunk
 from services.rag_pipeline import RAGPipeline
 from security.input_guard import SecurityError
 from retrieval.filters import RetrievalError
-from security.auth import get_current_user, get_tenant_context
+from security.auth import get_current_user
+from security.rbac import require_permission, Permission
 from app.models import TenantContext
 from db.models.user import User
 from db.engine import get_db, async_session_factory
@@ -101,7 +102,7 @@ async def _persist_conversation(
 async def execute_query(
     request: QueryRequest,
     current_user: User = Depends(get_current_user),
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_context: TenantContext = Depends(require_permission(Permission.QUERY_WRITE)),
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> ChatResponse:
     """
@@ -177,7 +178,7 @@ async def execute_query(
 async def execute_query_stream(
     request: QueryRequest,
     current_user: User = Depends(get_current_user),
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_context: TenantContext = Depends(require_permission(Permission.QUERY_WRITE)),
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> StreamingResponse:
     """
