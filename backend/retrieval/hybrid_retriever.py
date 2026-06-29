@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, List, Optional, Tuple
 
-from pipeline.indexer import QdrantIndexer, BM25Index
+from pipeline.indexer import QdrantIndexer, BM25IndexPool
 from pipeline.embedder import Embedder
 from retrieval.filters import build_qdrant_filter
 from app.config import RetrievalSettings, get_settings
@@ -50,17 +50,13 @@ class HybridRetriever:
         self,
         embedder: Optional[Embedder] = None,
         qdrant_indexer: Optional[QdrantIndexer] = None,
-        bm25_index: Optional[BM25Index] = None,
         settings: Optional[RetrievalSettings] = None,
     ) -> None:
         cfg = get_settings()
         self._cfg: RetrievalSettings = settings or cfg.retrieval
         self._embedder = embedder or Embedder()
         self._qdrant = qdrant_indexer or QdrantIndexer()
-        if bm25_index is not None:
-            self._bm25 = bm25_index
-        else:
-            self._bm25 = BM25Index.load(cfg.qdrant.bm25_index_path)
+        self._bm25_pool = BM25IndexPool()
 
     # ------------------------------------------------------------------
     # Public API
@@ -68,6 +64,7 @@ class HybridRetriever:
 
     def retrieve(
         self,
+        tenant_id: str,
         query: str,
         top_k: Optional[int] = None,
         filters: Optional[List[MetadataFilter]] = None,
@@ -102,7 +99,7 @@ class HybridRetriever:
                 logger.error("Failed to embed query: %s", exc)
 
         # 2. Dense search
-        qdrant_filter = build_qdrant_filter(filters or [])
+        qdrant_filter = build_qdrant_filter(tenant_id, filters or [])
         dense_hits: List[Tuple[str, float]] = []
         scored_points = []
         if query_vector is not None:
@@ -122,7 +119,8 @@ class HybridRetriever:
         sparse_hits: List[Tuple[str, float]] = []
         if retrieval_mode in ("hybrid", "keyword"):
             try:
-                sparse_hits = self._bm25.search(query, top_k=self._cfg.top_k_sparse)
+                bm25_index = self._bm25_pool.get(tenant_id)
+                sparse_hits = bm25_index.search(query, top_k=self._cfg.top_k_sparse)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("BM25 sparse search failed: %s", exc)
 
@@ -144,6 +142,7 @@ class HybridRetriever:
             results.append(
                 RetrievedChunk(
                     chunk_id=chunk_id,
+                    tenant_id=tenant_id,
                     document_id=payload.get("document_id", ""),
                     text=payload.get("text", ""),
                     source=RetrievalSource.VECTOR

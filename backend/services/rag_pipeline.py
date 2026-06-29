@@ -55,6 +55,7 @@ from app.models import (
     ChatMessage,
     MessageRole,
     StreamEventType,
+    TenantContext,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ class RAGPipeline:
     # Non-streaming
     # ------------------------------------------------------------------
 
-    def run(self, request: QueryRequest) -> ChatResponse:
+    def run(self, request: QueryRequest, tenant_context: TenantContext) -> ChatResponse:
         """
         Execute the full RAG pipeline and return a ``ChatResponse``.
 
@@ -108,19 +109,21 @@ class RAGPipeline:
 
         # 1. Input validation
         try:
-            self._input_guard.validate(request)
+            self._input_guard.validate(request, tenant_context)
         except SecurityError as exc:
             raise  # Let the route handler convert to ErrorResponse
 
+        tenant_id = tenant_context.tenant_id
+
         # 2. Semantic cache lookup
         if request.use_cache:
-            cached = self._cache.get(request.query)
+            cached = self._cache.get(tenant_id, request.query)
             if cached is not None:
                 cached.metadata.used_cache = True
                 return cached
 
         # 3. Conversation history
-        history = self._store.get_history(request.session_id)
+        history = self._store.get_history(tenant_id, request.session_id)
 
         # 4. Query routing
         intent = self._router.route(request.query, history=history)
@@ -133,6 +136,7 @@ class RAGPipeline:
         all_chunks: List[RetrievedChunk] = []
         for sq in sub_queries:
             chunks = self._retriever.retrieve(
+                tenant_id=tenant_id,
                 query=sq,
                 top_k=request.top_k,
                 filters=request.filters or [],
@@ -152,15 +156,8 @@ class RAGPipeline:
 
         # 8. CRAG correction
         settings = get_settings()
-        tenant_id = None
-        if request.filters:
-            for f in request.filters:
-                if f.key == "tenant_id":
-                    tenant_id = str(f.value)
-                    break
-                    
         if settings.features.enable_crag:
-            reranked = self._crag.correct(request.query, reranked, tenant_id=tenant_id)
+            reranked = self._crag.correct(tenant_id, request.query, reranked)
 
         # 9. Context builder
         context_str, citations = self._build_context(reranked)
@@ -204,18 +201,20 @@ class RAGPipeline:
 
         # 12. Save conversation history
         self._store.add_message(
+            tenant_id,
             request.session_id,
             ChatMessage(role=MessageRole.USER, content=request.query),
         )
         self._store.add_message(
+            tenant_id,
             request.session_id,
             ChatMessage(role=MessageRole.ASSISTANT, content=answer),
         )
-        self._store.summarize_if_needed(request.session_id)
+        self._store.summarize_if_needed(tenant_id, request.session_id)
 
         # 13. Populate cache
         if request.use_cache:
-            self._cache.set(request.query, response)
+            self._cache.set(tenant_id, request.query, response)
 
         return response
 
@@ -223,7 +222,7 @@ class RAGPipeline:
     # Streaming
     # ------------------------------------------------------------------
 
-    async def stream(self, request: QueryRequest) -> AsyncIterator[StreamChunk]:
+    async def stream(self, request: QueryRequest, tenant_context: TenantContext) -> AsyncIterator[StreamChunk]:
         """
         Execute the pipeline with streaming LLM generation.
 
@@ -238,7 +237,7 @@ class RAGPipeline:
 
         # 1. Input validation
         try:
-            self._input_guard.validate(request)
+            self._input_guard.validate(request, tenant_context)
         except SecurityError as exc:
             yield StreamChunk(
                 event=StreamEventType.ERROR,
@@ -254,24 +253,26 @@ class RAGPipeline:
             sequence=seq,
         )
         seq += 1
+        
+        tenant_id = tenant_context.tenant_id
 
         # 2. Cache
         if request.use_cache:
-            cached = self._cache.get(request.query)
+            cached = self._cache.get(tenant_id, request.query)
             if cached is not None:
                 async for chunk in self._replay_cached(cached, request.session_id, seq):
                     yield chunk
                 return
 
         # 3–9. Same as non-streaming (retrieval is not streamed)
-        history = self._store.get_history(request.session_id)
+        history = self._store.get_history(tenant_id, request.session_id)
         intent = self._router.route(request.query, history=history)
         sub_queries = self._decomposer.decompose(request.query)
 
         all_chunks: List[RetrievedChunk] = []
         for sq in sub_queries:
             all_chunks.extend(
-                self._retriever.retrieve(query=sq, top_k=request.top_k, filters=request.filters or [])
+                self._retriever.retrieve(tenant_id=tenant_id, query=sq, top_k=request.top_k, filters=request.filters or [])
             )
         seen_ids: set = set()
         unique_chunks: List[RetrievedChunk] = []
@@ -282,16 +283,9 @@ class RAGPipeline:
 
         settings = get_settings()
         reranked = self._reranker.rerank(request.query, unique_chunks, top_n=request.top_k)
-        
-        tenant_id = None
-        if request.filters:
-            for f in request.filters:
-                if f.key == "tenant_id":
-                    tenant_id = str(f.value)
-                    break
                     
         if settings.features.enable_crag:
-            reranked = self._crag.correct(request.query, reranked, tenant_id=tenant_id)
+            reranked = self._crag.correct(tenant_id, request.query, reranked)
 
         context_str, citations = self._build_context(reranked)
 
@@ -341,8 +335,9 @@ class RAGPipeline:
         )
 
         # 12. Save history
-        self._store.add_message(request.session_id, ChatMessage(role=MessageRole.USER, content=request.query))
-        self._store.add_message(request.session_id, ChatMessage(role=MessageRole.ASSISTANT, content=full_answer))
+        self._store.add_message(tenant_id, request.session_id, ChatMessage(role=MessageRole.USER, content=request.query))
+        self._store.add_message(tenant_id, request.session_id, ChatMessage(role=MessageRole.ASSISTANT, content=full_answer))
+        self._store.summarize_if_needed(tenant_id, request.session_id)
 
         # 13. Cache
         if request.use_cache and full_answer:
@@ -352,7 +347,7 @@ class RAGPipeline:
                 citations=citations,
                 metadata=meta,
             )
-            self._cache.set(request.query, response)
+            self._cache.set(tenant_id, request.query, response)
 
     # ------------------------------------------------------------------
     # Context building

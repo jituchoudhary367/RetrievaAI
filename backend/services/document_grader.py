@@ -45,6 +45,7 @@ class DocumentGrader:
 
     def grade(
         self,
+        tenant_id: str,
         query: str,
         chunks: List[RetrievedChunk],
     ) -> List[Tuple[RetrievedChunk, RelevanceGrade, float]]:
@@ -67,6 +68,13 @@ class DocumentGrader:
         results: List[Tuple[RetrievedChunk, RelevanceGrade, float]] = []
 
         for chunk in chunks:
+            if chunk.tenant_id != tenant_id:
+                logger.error(
+                    "Security violation: Chunk %s belongs to tenant %s, but graded for tenant %s.",
+                    chunk.chunk_id, chunk.tenant_id, tenant_id
+                )
+                continue
+                
             grade, score = self._grade_one(query, chunk)
             results.append((chunk, grade, score))
 

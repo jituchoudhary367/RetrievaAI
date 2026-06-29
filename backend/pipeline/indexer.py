@@ -23,6 +23,7 @@ import pickle
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from cachetools import LRUCache
 
 from app.config import QdrantSettings, get_settings
 from app.models import Chunk
@@ -167,6 +168,35 @@ class BM25Index:
         return len(self._corpus)
 
 
+class BM25IndexPool:
+    """
+    Manages an LRU cache of tenant-scoped BM25Index objects.
+    Each tenant gets a separate index file (e.g., bm25_index_{tenant_id}.pkl).
+    """
+
+    def __init__(self, capacity: int = 100) -> None:
+        self._cfg = get_settings().qdrant
+        self._cache: LRUCache = LRUCache(maxsize=capacity)
+
+    def get(self, tenant_id: str) -> BM25Index:
+        if tenant_id in self._cache:
+            return self._cache[tenant_id]
+
+        path = self._get_path(tenant_id)
+        index = BM25Index.load(path)
+        self._cache[tenant_id] = index
+        return index
+
+    def save(self, tenant_id: str) -> None:
+        if tenant_id in self._cache:
+            path = self._get_path(tenant_id)
+            self._cache[tenant_id].save(path)
+
+    def _get_path(self, tenant_id: str) -> Path:
+        base = self._cfg.bm25_index_path
+        return base.with_name(f"{base.name}_{tenant_id}.pkl")
+
+
 # ---------------------------------------------------------------------------
 # Qdrant indexer
 # ---------------------------------------------------------------------------
@@ -302,8 +332,8 @@ class QdrantIndexer:
             with_payload=True,
         )
 
-    def delete_by_document_id(self, document_id: str) -> None:
-        """Delete all points belonging to *document_id*."""
+    def delete_by_document_id(self, document_id: str, tenant_id: str) -> None:
+        """Delete all points belonging to *document_id* for a specific *tenant_id*."""
         try:
             from qdrant_client.http.models import Filter, FieldCondition, MatchValue  # noqa: PLC0415
         except ImportError as exc:
@@ -312,14 +342,21 @@ class QdrantIndexer:
             ) from exc
 
         client = self._get_client()
+        tenant_payload_field = self._cfg.model_dump().get("tenant_id_payload_field", "tenant_id")
+        # In QdrantSettings we don't have tenant_id_payload_field, we get it from TenancySettings
+        tenant_payload_field = get_settings().tenancy.tenant_id_payload_field
+        
         client.delete(
             collection_name=self._cfg.collection_name,
             points_selector=Filter(
-                must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]
+                must=[
+                    FieldCondition(key="document_id", match=MatchValue(value=document_id)),
+                    FieldCondition(key=tenant_payload_field, match=MatchValue(value=tenant_id)),
+                ]
             ),
             wait=True,
         )
-        logger.info("Deleted all points for document_id=%s from Qdrant.", document_id)
+        logger.info("Deleted all points for document_id=%s, tenant_id=%s from Qdrant.", document_id, tenant_id)
 
 
 # ---------------------------------------------------------------------------
@@ -335,10 +372,8 @@ class Indexer:
     """
 
     def __init__(self) -> None:
-        settings = get_settings()
-        self._bm25_path: Path = settings.qdrant.bm25_index_path
         self._qdrant = QdrantIndexer()
-        self._bm25: BM25Index = BM25Index.load(self._bm25_path)
+        self._bm25_pool = BM25IndexPool()
 
     # ------------------------------------------------------------------
     # Write
@@ -354,53 +389,47 @@ class Indexer:
         if not chunks:
             return 0
 
+        tenant_ids = {c.tenant_id for c in chunks}
+        if len(tenant_ids) > 1:
+            raise IndexingError("Cannot index chunks for multiple tenants in a single batch.")
+            
+        tenant_id = tenant_ids.pop()
+
         try:
             count = self._qdrant.upsert_chunks(chunks)
         except Exception as exc:
             raise IndexingError(f"Qdrant upsert failed: {exc}") from exc
 
+        bm25_index = self._bm25_pool.get(tenant_id)
         for chunk in chunks:
             try:
-                self._bm25.add_documents(chunk.chunk_id, chunk.text)
+                bm25_index.add_documents(chunk.chunk_id, chunk.text)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("BM25 indexing failed for chunk %s: %s", chunk.chunk_id, exc)
 
-        self._persist_bm25()
+        self._bm25_pool.save(tenant_id)
         return count
 
-    def remove_document(self, document_id: str) -> None:
+    def remove_document(self, document_id: str, tenant_id: str) -> None:
         """Remove all chunks for *document_id* from both indexes."""
         try:
-            self._qdrant.delete_by_document_id(document_id)
+            self._qdrant.delete_by_document_id(document_id, tenant_id)
         except Exception as exc:
             raise IndexingError(
                 f"Qdrant delete for document {document_id} failed: {exc}"
             ) from exc
 
-        # BM25: we don't have a direct mapping doc_id→chunk_ids here,
-        # so we search the corpus for matching document IDs stored in metadata.
-        to_remove = [
-            cid for cid in list(self._bm25._corpus)
-            # chunk_id format: UUID — we rely on payload metadata not stored
-            # in BM25 directly.  Emit a warning if a caller needs granular
-            # removal; the primary path is ingest-level idempotency.
-        ]
+        # BM25
         logger.info(
             "BM25 remove_document: BM25 does not store document_id→chunk_id "
             "mapping; skipping BM25 removal for document %s.",
             document_id,
         )
-        self._persist_bm25()
+        self._bm25_pool.save(tenant_id)
 
     # ------------------------------------------------------------------
     # Private
     # ------------------------------------------------------------------
-
-    def _persist_bm25(self) -> None:
-        try:
-            self._bm25.save(self._bm25_path)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to persist BM25 index: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -421,5 +450,6 @@ __all__ = [
     "Indexer",
     "QdrantIndexer",
     "BM25Index",
+    "BM25IndexPool",
     "IndexingError",
 ]

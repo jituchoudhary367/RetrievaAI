@@ -27,7 +27,8 @@ from app.models import QueryRequest, ChatResponse, ErrorResponse, StreamChunk
 from services.rag_pipeline import RAGPipeline
 from security.input_guard import SecurityError
 from retrieval.filters import RetrievalError
-from security.auth import get_current_user
+from security.auth import get_current_user, get_tenant_context
+from app.models import TenantContext
 from db.models.user import User
 from db.engine import get_db, async_session_factory
 from db.models.conversation import Conversation, ConversationMessage
@@ -100,6 +101,7 @@ async def _persist_conversation(
 async def execute_query(
     request: QueryRequest,
     current_user: User = Depends(get_current_user),
+    tenant_context: TenantContext = Depends(get_tenant_context),
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> ChatResponse:
     """
@@ -117,7 +119,7 @@ async def execute_query(
 
     try:
         # Pass user roles to pipeline if needed for RBAC in retrieval, though tenant_id is the primary hard boundary.
-        response = pipeline.run(request)
+        response = pipeline.run(request, tenant_context)
         
         # Dual-write conversation to Postgres
         asyncio.create_task(_persist_conversation(
@@ -175,6 +177,7 @@ async def execute_query(
 async def execute_query_stream(
     request: QueryRequest,
     current_user: User = Depends(get_current_user),
+    tenant_context: TenantContext = Depends(get_tenant_context),
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> StreamingResponse:
     """
@@ -196,7 +199,7 @@ async def execute_query_stream(
         citations = []
         
         try:
-            async for chunk in pipeline.stream(request):
+            async for chunk in pipeline.stream(request, tenant_context):
                 # Accumulate the response to persist after stream completes
                 if chunk.event == "content":
                     full_response_text += chunk.content_delta or ""

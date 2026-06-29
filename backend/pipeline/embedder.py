@@ -313,6 +313,8 @@ class Embedder:
     # ------------------------------------------------------------------
 
     def _cache_key(self, text: str) -> str:
+        # Note: tenant_id is explicitly EXCLUDED from this cache key. 
+        # This preserves cross-tenant cache hits for identical public data.
         payload = f"{self._cfg.model_name}:{text}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 

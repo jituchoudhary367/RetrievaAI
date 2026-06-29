@@ -1,4 +1,5 @@
 import { ErrorDetail, ErrorResponse } from "../types/models";
+import { getAuthToken, clearAuthToken } from "../auth/session";
 
 export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -14,6 +15,13 @@ export class ApiError extends Error {
   }
 }
 
+export class AuthError extends ApiError {
+  constructor(errors: ErrorDetail[], message?: string) {
+    super(401, errors, message || "Authentication required");
+    this.name = "AuthError";
+  }
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${apiBaseUrl}${path}`;
   
@@ -23,11 +31,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   // Inject JWT Token
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
-    if (token && !headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
+  const token = getAuthToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   const response = await fetch(url, { ...init, headers });
@@ -41,7 +47,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     }
 
     if (errorResponse && errorResponse.errors) {
+      if (response.status === 401) {
+        clearAuthToken();
+        throw new AuthError(errorResponse.errors, response.statusText);
+      }
       throw new ApiError(response.status, errorResponse.errors, response.statusText);
+    }
+    
+    if (response.status === 401) {
+      clearAuthToken();
+      throw new AuthError([{ code: "UNAUTHORIZED", message: response.statusText }]);
     }
     
     throw new ApiError(response.status, [{ code: "UNKNOWN", message: response.statusText }]);

@@ -67,6 +67,14 @@ class InternalModel(BaseModel):
     )
 
 
+class TenantContext(InternalModel):
+    """Authenticated context scoped to a single request."""
+    
+    tenant_id: str = Field(..., min_length=1)
+    user_id: Optional[str] = Field(default=None)
+    roles: List[str] = Field(default_factory=list)
+
+
 # --------------------------------------------------------------------------- #
 # Enums
 # --------------------------------------------------------------------------- #
@@ -243,6 +251,7 @@ class RetrievedChunk(InternalModel):
 
     chunk_id: str
     document_id: str
+    tenant_id: str = Field(..., min_length=1)
     text: str
     source: RetrievalSource
     dense_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
@@ -404,6 +413,7 @@ class HealthResponse(APIModel):
 
 class DocumentMetadata(InternalModel):
     document_id: str = Field(default_factory=_new_id)
+    tenant_id: str = Field(..., min_length=1)
     source_path: str
     source_type: str = Field(
         ..., description="One of: pdf, html, docx, image, text, md, csv, json"
@@ -419,6 +429,7 @@ class DocumentMetadata(InternalModel):
 class Chunk(InternalModel):
     chunk_id: str = Field(default_factory=_new_id)
     document_id: str
+    tenant_id: str = Field(..., min_length=1)
     text: str
     chunk_index: int = Field(..., ge=0)
     token_count: Optional[int] = Field(default=None, ge=0)

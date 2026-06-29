@@ -33,10 +33,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.models import TenantContext
 from db.engine import get_db
 from db.models.user import User, UserSession
 
 logger = logging.getLogger(__name__)
+
+class AuthError(HTTPException):
+    def __init__(self, detail: str = "Not authenticated"):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 # -------------------------------------------------------------------------
 # Password hashing
@@ -108,11 +117,35 @@ def _decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, cfg.jwt_secret_key, algorithms=[cfg.jwt_algorithm])
     except JWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
+        raise AuthError("Invalid or expired token") from exc
+
+
+async def get_tenant_context(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> TenantContext:
+    """
+    FastAPI dependency — extracts TenantContext from JWT based on TenancySettings.
+    """
+    if credentials is None:
+        raise AuthError("Not authenticated")
+
+    payload = _decode_token(credentials.credentials)
+    
+    tenancy_cfg = get_settings().tenancy
+    tenant_id = payload.get(tenancy_cfg.jwt_tenant_claim)
+    if not tenant_id:
+        raise AuthError(f"Missing tenant claim '{tenancy_cfg.jwt_tenant_claim}' in token")
+        
+    user_id = payload.get(tenancy_cfg.jwt_user_claim)
+    roles = payload.get(tenancy_cfg.jwt_roles_claim, [])
+    if isinstance(roles, str):
+        roles = [r.strip() for r in roles.split(",")]
+        
+    return TenantContext(
+        tenant_id=str(tenant_id),
+        user_id=str(user_id) if user_id else None,
+        roles=roles,
+    )
 
 
 async def get_current_user(

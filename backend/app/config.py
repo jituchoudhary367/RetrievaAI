@@ -333,6 +333,20 @@ class FeatureFlags(BaseSettings):
     enable_crag: bool = Field(default=True)
 
 
+class TenancySettings(BaseSettings):
+    """Multi-tenancy configuration and JWT claims mapping."""
+
+    model_config = SettingsConfigDict(env_prefix="TENANCY_", extra="ignore")
+
+    enabled: bool = Field(default=True)
+    jwt_tenant_claim: str = Field(default="tenant_id")
+    jwt_user_claim: str = Field(default="sub")
+    jwt_roles_claim: str = Field(default="roles")
+    default_tenant_id: Optional[str] = Field(default=None)
+    tenant_id_payload_field: str = Field(default="tenant_id")
+    registry_cache_ttl_seconds: int = Field(default=300, ge=0)
+
+
 # --------------------------------------------------------------------------- #
 # Root settings
 # --------------------------------------------------------------------------- #
@@ -393,6 +407,7 @@ class Settings(BaseSettings):
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     conversation: ConversationSettings = Field(default_factory=ConversationSettings)
     features: FeatureFlags = Field(default_factory=FeatureFlags)
+    tenancy: TenancySettings = Field(default_factory=TenancySettings)
 
     # ----------------------------------------------------------------- #
     # Validators
@@ -444,6 +459,9 @@ class Settings(BaseSettings):
 
         if not self.security.jwt_secret_key:
             raise ValueError("SECURITY_JWT_SECRET_KEY is required in production")
+            
+        if self.tenancy.default_tenant_id is not None:
+            raise ValueError("TENANCY_DEFAULT_TENANT_ID must not be set in production to avoid silent security bypasses")
 
         return self
 

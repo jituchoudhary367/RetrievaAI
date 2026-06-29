@@ -58,9 +58,9 @@ class ConversationStore:
     # Public API
     # ------------------------------------------------------------------
 
-    def add_message(self, session_id: str, message: ChatMessage) -> None:
+    def add_message(self, tenant_id: str, session_id: str, message: ChatMessage) -> None:
         """Append *message* to the session history, then trim if needed."""
-        key = self._key(session_id)
+        key = self._key(tenant_id, session_id)
         serialised = message.model_dump_json(by_alias=True)
         client = self._get_client()
 
@@ -76,13 +76,13 @@ class ConversationStore:
                 logger.warning("ConversationStore.add_message (Redis) failed: %s", exc)
 
         # Fallback
-        history = self._fallback.setdefault(session_id, [])
+        history = self._fallback.setdefault(key, [])
         history.append(serialised)
-        self._trim_fallback(session_id)
+        self._trim_fallback(key)
 
-    def get_history(self, session_id: str) -> List[ChatMessage]:
+    def get_history(self, tenant_id: str, session_id: str) -> List[ChatMessage]:
         """Return the conversation history for *session_id*."""
-        key = self._key(session_id)
+        key = self._key(tenant_id, session_id)
         client = self._get_client()
 
         raw_list: List[str] = []
@@ -91,9 +91,9 @@ class ConversationStore:
                 raw_list = client.lrange(key, 0, -1)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("ConversationStore.get_history (Redis) failed: %s", exc)
-                raw_list = self._fallback.get(session_id, [])
+                raw_list = self._fallback.get(key, [])
         else:
-            raw_list = self._fallback.get(session_id, [])
+            raw_list = self._fallback.get(key, [])
 
         messages: List[ChatMessage] = []
         for raw in raw_list:
@@ -104,7 +104,7 @@ class ConversationStore:
 
         return messages
 
-    def summarize_if_needed(self, session_id: str) -> None:
+    def summarize_if_needed(self, tenant_id: str, session_id: str) -> None:
         """
         Trigger summarisation when the session history exceeds
         ``summarization_trigger_turns`` turns (if summarisation is enabled).
@@ -114,7 +114,7 @@ class ConversationStore:
         if not self._conv_cfg.summarization_enabled:
             return
 
-        history = self.get_history(session_id)
+        history = self.get_history(tenant_id, session_id)
         num_turns = len(history) // 2  # user+assistant pairs
 
         if num_turns < self._conv_cfg.summarization_trigger_turns:
@@ -128,7 +128,7 @@ class ConversationStore:
         )
 
         try:
-            self._summarise(session_id, history)
+            self._summarise(tenant_id, session_id, history)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Summarisation failed for session %s: %s", session_id, exc)
 
@@ -136,7 +136,7 @@ class ConversationStore:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _summarise(self, session_id: str, history: List[ChatMessage]) -> None:
+    def _summarise(self, tenant_id: str, session_id: str, history: List[ChatMessage]) -> None:
         """Replace history with a summary + the most recent turns."""
         from prompts.templates import render_summarization_prompt  # noqa: PLC0415
 
@@ -160,7 +160,7 @@ class ConversationStore:
         new_history: List[ChatMessage] = [summary_message] + recent
 
         # Replace Redis list
-        key = self._key(session_id)
+        key = self._key(tenant_id, session_id)
         client = self._get_client()
         serialised_list = [m.model_dump_json(by_alias=True) for m in new_history]
 
@@ -173,7 +173,7 @@ class ConversationStore:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Redis replace for summarisation failed: %s", exc)
 
-        self._fallback[session_id] = serialised_list
+        self._fallback[key] = serialised_list
 
     def _call_llm(self, prompt: str) -> Optional[str]:
         """Minimal LLM call for summarisation — avoids circular imports."""
@@ -223,11 +223,11 @@ class ConversationStore:
             total_chars -= len(removed)
             client.lpop(key)
 
-    def _trim_fallback(self, session_id: str) -> None:
-        history = self._fallback.get(session_id, [])
+    def _trim_fallback(self, key: str) -> None:
+        history = self._fallback.get(key, [])
         max_msgs = self._conv_cfg.max_history_turns * 2
         if len(history) > max_msgs:
-            self._fallback[session_id] = history[-max_msgs:]
+            self._fallback[key] = history[-max_msgs:]
 
     def _get_client(self) -> Optional[object]:
         if self._redis_client is not None:
@@ -252,8 +252,8 @@ class ConversationStore:
         return None
 
     @staticmethod
-    def _key(session_id: str) -> str:
-        return f"rag:conversation:{session_id}"
+    def _key(tenant_id: str, session_id: str) -> str:
+        return f"{tenant_id}:conversation:{session_id}"
 
 
 __all__ = ["ConversationStore"]

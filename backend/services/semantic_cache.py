@@ -54,7 +54,7 @@ class SemanticCache:
     # Public API
     # ------------------------------------------------------------------
 
-    def get(self, query: str) -> Optional[ChatResponse]:
+    def get(self, tenant_id: str, query: str) -> Optional[ChatResponse]:
         """
         Return a cached ``ChatResponse`` for *query*, or ``None`` on miss.
 
@@ -69,8 +69,9 @@ class SemanticCache:
             if query_emb is None:
                 return None
 
-            # Scan all embedding keys
-            prefix = self._cfg.cache_key_prefix + "emb:"
+            # Scan all embedding keys for this tenant
+            base_prefix = f"{tenant_id}:{self._cfg.cache_key_prefix}"
+            prefix = base_prefix + "emb:"
             cursor = 0
             best_key: Optional[str] = None
             best_sim = -1.0
@@ -98,7 +99,7 @@ class SemanticCache:
                 return None
 
             # Retrieve the response stored under the matching response key
-            resp_key = best_key.replace(prefix, self._cfg.cache_key_prefix + "resp:")
+            resp_key = best_key.replace(prefix, base_prefix + "resp:")
             raw_resp = client.get(resp_key)
             if raw_resp is None:
                 return None
@@ -113,7 +114,7 @@ class SemanticCache:
             logger.warning("SemanticCache.get failed: %s", exc)
             return None
 
-    def set(self, query: str, response: ChatResponse) -> None:
+    def set(self, tenant_id: str, query: str, response: ChatResponse) -> None:
         """
         Store *response* in the cache, keyed by the embedding of *query*.
         """
@@ -128,8 +129,9 @@ class SemanticCache:
 
             import hashlib  # noqa: PLC0415
             cache_id = hashlib.sha256(query.encode()).hexdigest()[:16]
-            emb_key = self._cfg.cache_key_prefix + "emb:" + cache_id
-            resp_key = self._cfg.cache_key_prefix + "resp:" + cache_id
+            base_prefix = f"{tenant_id}:{self._cfg.cache_key_prefix}"
+            emb_key = base_prefix + "emb:" + cache_id
+            resp_key = base_prefix + "resp:" + cache_id
             ttl = self._cfg.cache_ttl_seconds
 
             emb_value = ",".join(str(v) for v in query_emb)

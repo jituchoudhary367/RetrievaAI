@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.models import ErrorDetail, ErrorResponse
+from security.auth import AuthError
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,18 @@ def create_app() -> FastAPI:
             errors=[ErrorDetail(code="INTERNAL_SERVER_ERROR", message="An unexpected error occurred.")],
         )
         return JSONResponse(status_code=500, content=error_response.model_dump(by_alias=True))
+
+    @app.exception_handler(AuthError)
+    async def auth_error_handler(request: Request, exc: AuthError):
+        error_response = ErrorResponse(
+            status_code=exc.status_code,
+            errors=[ErrorDetail(code="UNAUTHORIZED", message=exc.detail)],
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_response.model_dump(by_alias=True),
+            headers=exc.headers
+        )
 
     # ── Routers ───────────────────────────────────────────────────────────
     from routes.health import router as health_router

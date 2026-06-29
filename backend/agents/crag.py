@@ -63,9 +63,9 @@ class CragAgent:
 
     def correct(
         self,
+        tenant_id: str,
         query: str,
         chunks: List[RetrievedChunk],
-        tenant_id: Optional[str] = None,
     ) -> List[RetrievedChunk]:
         """
         Grade *chunks* and, if necessary, augment with external results.
@@ -79,7 +79,7 @@ class CragAgent:
         current_chunks = list(chunks)
 
         for attempt in range(self._cfg.max_correction_retries + 1):
-            grades = self._grader.grade(query, current_chunks)
+            grades = self._grader.grade(tenant_id, query, current_chunks)
             all_good, needs_correction = self._assess_grades(grades)
 
             if all_good:
@@ -133,7 +133,7 @@ class CragAgent:
         self,
         query: str,
         grades: List[Tuple[RetrievedChunk, RelevanceGrade, float]],
-        tenant_id: Optional[str] = None,
+        tenant_id: str,
     ) -> List[RetrievedChunk]:
         """Fetch supplementary context from enabled fallback sources."""
         extra: List[RetrievedChunk] = []
@@ -148,6 +148,7 @@ class CragAgent:
                         extra.append(
                             RetrievedChunk(
                                 chunk_id=f"web:{hash(snippet) & 0xFFFFFFFF:08x}",
+                                tenant_id=tenant_id,
                                 document_id=result.get("url", "web"),
                                 text=snippet,
                                 source=RetrievalSource.WEB,
@@ -175,6 +176,7 @@ class CragAgent:
                         extra.append(
                             RetrievedChunk(
                                 chunk_id=f"code:{hash(snippet) & 0xFFFFFFFF:08x}",
+                                tenant_id=tenant_id,
                                 document_id=result.get("file_path", "code"),
                                 text=snippet,
                                 source=RetrievalSource.CODE,
