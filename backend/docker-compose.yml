@@ -11,18 +11,51 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - QDRANT_HOST=qdrant
     volumes:
       - bm25_data:/app/data
+      - blob_data:/app/data/blobs
     depends_on:
       redis:
         condition: service_healthy
       qdrant:
         condition: service_started
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
       interval: 10s
       timeout: 5s
       retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_EXTRAS: "all"
+    command: ["rq", "worker", "ingestion", "--url", "redis://redis:6379/0"]
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - QDRANT_HOST=qdrant
+    volumes:
+      - bm25_data:/app/data
+      - blob_data:/app/data/blobs
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -42,6 +75,24 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rag_db
+      POSTGRES_USER: rag_user
+      POSTGRES_PASSWORD: rag_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag_user -d rag_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
 volumes:
   qdrant_data:
   bm25_data:
+  blob_data:
+  postgres_data:

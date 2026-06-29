@@ -230,6 +230,39 @@ class CragSettings(BaseSettings):
         return self
 
 
+class DatabaseSettings(BaseSettings):
+    """PostgreSQL connection configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="DB_", extra="ignore")
+
+    host: str = Field(default="localhost")
+    port: int = Field(default=5432, ge=1, le=65535)
+    name: str = Field(default="rag_db")
+    user: str = Field(default="rag_user")
+    password: str = Field(default="rag_password", repr=False)
+    pool_size: int = Field(default=10, ge=1)
+    max_overflow: int = Field(default=20, ge=0)
+
+    @property
+    def url(self) -> str:
+        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+
+    @property
+    def sync_url(self) -> str:
+        """Synchronous URL for Alembic migrations."""
+        return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+
+
+class BlobStorageSettings(BaseSettings):
+    """Local-filesystem blob storage for original uploaded files (§1.4)."""
+
+    model_config = SettingsConfigDict(env_prefix="BLOB_", extra="ignore")
+
+    root_path: Path = Field(default=Path("./data/blobs"))
+    # backend: "local" (default) | "s3" (future)
+    backend: str = Field(default="local")
+
+
 class SecuritySettings(BaseSettings):
     """Input/output guardrails, rate limiting, and auth."""
 
@@ -243,8 +276,11 @@ class SecuritySettings(BaseSettings):
     pii_detection_enabled: bool = Field(default=True)
     prompt_injection_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
     allowed_origins: List[str] = Field(default_factory=lambda: ["*"])
-    jwt_secret_key: Optional[str] = Field(default=None, repr=False)
+    jwt_secret_key: Optional[str] = Field(default="dev-secret-change-in-production", repr=False)
     jwt_algorithm: str = Field(default="HS256")
+    jwt_access_token_expire_minutes: int = Field(default=60, ge=1)
+    jwt_refresh_token_expire_days: int = Field(default=30, ge=1)
+    bcrypt_rounds: int = Field(default=12, ge=4, le=31)
 
 
 class ObservabilitySettings(BaseSettings):
@@ -346,6 +382,8 @@ class Settings(BaseSettings):
     # --- Sub-settings groups ---
     redis: RedisSettings = Field(default_factory=RedisSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    blob: BlobStorageSettings = Field(default_factory=BlobStorageSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)

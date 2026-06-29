@@ -65,6 +65,7 @@ class CragAgent:
         self,
         query: str,
         chunks: List[RetrievedChunk],
+        tenant_id: Optional[str] = None,
     ) -> List[RetrievedChunk]:
         """
         Grade *chunks* and, if necessary, augment with external results.
@@ -96,7 +97,7 @@ class CragAgent:
                 self._cfg.max_correction_retries,
             )
 
-            extra_chunks = self._fetch_extra_context(query, grades)
+            extra_chunks = self._fetch_extra_context(query, grades, tenant_id)
             if not extra_chunks:
                 logger.warning("CRAG: no extra context retrieved; stopping correction.")
                 break
@@ -132,6 +133,7 @@ class CragAgent:
         self,
         query: str,
         grades: List[Tuple[RetrievedChunk, RelevanceGrade, float]],
+        tenant_id: Optional[str] = None,
     ) -> List[RetrievedChunk]:
         """Fetch supplementary context from enabled fallback sources."""
         extra: List[RetrievedChunk] = []
@@ -139,7 +141,7 @@ class CragAgent:
         # Web search fallback
         if self._cfg.web_search_fallback:
             try:
-                web_results = self._web_search.search(query, top_k=3)
+                web_results = self._web_search.search(query, top_k=3, tenant_id=tenant_id)
                 for result in web_results:
                     snippet = result.get("snippet", "").strip()
                     if snippet:
@@ -166,7 +168,7 @@ class CragAgent:
             try:
                 import os  # noqa: PLC0415
                 repo_path = os.getcwd()
-                code_results = self._code_search.search(query, repo_path=repo_path, top_k=3)
+                code_results = self._code_search.search(query, repo_path=repo_path, top_k=3, tenant_id=tenant_id)
                 for result in code_results:
                     snippet = result.get("snippet", "").strip()
                     if snippet:

@@ -59,7 +59,7 @@ class WebSearchTool:
     # Public API
     # ------------------------------------------------------------------
 
-    def search(self, query: str, top_k: int = 5) -> List[Dict]:
+    def search(self, query: str, top_k: int = 5, tenant_id: Optional[str] = None) -> List[Dict]:
         """
         Search the web for *query* and return up to *top_k* results.
 
@@ -71,10 +71,36 @@ class WebSearchTool:
         Returns ``[]`` with a WARNING log when no API key is available
         (graceful degradation, not an exception).
         """
-        if self._serper_key:
-            return self._search_serper(query, top_k)
-        if self._tavily_key:
-            return self._search_tavily(query, top_k)
+        import time
+        import asyncio
+        from services.tool_logger import log_tool_execution
+        
+        start_time = time.perf_counter()
+        tool_id = "00000000-0000-0000-0001-000000000002"
+
+        def _log(status: str, error: Optional[str] = None):
+            if tenant_id:
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                asyncio.create_task(log_tool_execution(
+                    tenant_id=tenant_id,
+                    tool_id=tool_id,
+                    status=status,
+                    latency_ms=latency_ms,
+                    error_message=error
+                ))
+
+        try:
+            if self._serper_key:
+                res = self._search_serper(query, top_k)
+                _log("success")
+                return res
+            if self._tavily_key:
+                res = self._search_tavily(query, top_k)
+                _log("success")
+                return res
+        except Exception as e:
+            _log("failed", str(e))
+            raise e
 
         logger.warning(
             "WebSearchTool: no SERPER_API_KEY or TAVILY_API_KEY configured — "

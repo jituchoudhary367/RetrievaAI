@@ -71,6 +71,7 @@ class HybridRetriever:
         query: str,
         top_k: Optional[int] = None,
         filters: Optional[List[MetadataFilter]] = None,
+        retrieval_mode: str = "hybrid",
     ) -> List[RetrievedChunk]:
         """
         Retrieve relevant chunks for *query*.
@@ -83,6 +84,8 @@ class HybridRetriever:
             Override the configured ``top_k_final`` count.
         filters:
             Optional metadata filters applied to the dense leg only.
+        retrieval_mode:
+            "hybrid", "vector", or "keyword"
 
         Returns
         -------
@@ -91,33 +94,37 @@ class HybridRetriever:
         final_k = top_k if top_k is not None else self._cfg.top_k_final
 
         # 1. Embed query
-        try:
-            query_vector = self._embedder.embed_texts([query])[0]
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to embed query: %s", exc)
-            return []
+        query_vector = None
+        if retrieval_mode in ("hybrid", "vector"):
+            try:
+                query_vector = self._embedder.embed_texts([query])[0]
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed to embed query: %s", exc)
 
         # 2. Dense search
         qdrant_filter = build_qdrant_filter(filters or [])
         dense_hits: List[Tuple[str, float]] = []
-        try:
-            scored_points = self._qdrant.search(
-                query_vector=query_vector,
-                top_k=self._cfg.top_k_dense,
-                query_filter=qdrant_filter,
-            )
-            for point in scored_points:
-                chunk_id = point.payload.get("chunk_id", str(point.id))
-                dense_hits.append((chunk_id, float(point.score)))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Qdrant dense search failed: %s", exc)
+        scored_points = []
+        if query_vector is not None:
+            try:
+                scored_points = self._qdrant.search(
+                    query_vector=query_vector,
+                    top_k=self._cfg.top_k_dense,
+                    query_filter=qdrant_filter,
+                )
+                for point in scored_points:
+                    chunk_id = point.payload.get("chunk_id", str(point.id))
+                    dense_hits.append((chunk_id, float(point.score)))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Qdrant dense search failed: %s", exc)
 
         # 3. Sparse search (BM25)
         sparse_hits: List[Tuple[str, float]] = []
-        try:
-            sparse_hits = self._bm25.search(query, top_k=self._cfg.top_k_sparse)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("BM25 sparse search failed: %s", exc)
+        if retrieval_mode in ("hybrid", "keyword"):
+            try:
+                sparse_hits = self._bm25.search(query, top_k=self._cfg.top_k_sparse)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("BM25 sparse search failed: %s", exc)
 
         # 4. Reciprocal Rank Fusion
         fused = self._rrf(dense_hits, sparse_hits)

@@ -40,6 +40,24 @@ prometheus-client = "^0.21.0"
 opentelemetry-sdk = "^1.28.0"
 opentelemetry-exporter-otlp = "^1.28.0"
 
+# --- Database (Postgres + async ORM) ---
+sqlalchemy = { extras = ["asyncio"], version = "^2.0.0" }
+asyncpg = "^0.30.0"
+psycopg2-binary = "^2.9.0"
+alembic = "^1.14.0"
+
+# --- Async job queue ---
+rq = "^2.0.0"
+
+# --- Auth / Security ---
+python-jose = { extras = ["cryptography"], version = "^3.3.0" }
+passlib = { extras = ["bcrypt"], version = "^1.7.4" }
+pyotp = "^2.9.0"
+qrcode = { extras = ["pil"], version = "^8.0.0" }
+
+# --- File uploads ---
+python-multipart = "^0.0.12"
+
 # --- Optional: embedding/LLM providers (services/, pipeline/embedder.py) ---
 openai = { version = "^1.54.0", optional = true }
 sentence-transformers = { version = "^3.2.0", optional = true }

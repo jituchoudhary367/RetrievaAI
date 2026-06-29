@@ -42,6 +42,7 @@ class CodeSearchTool:
         query: str,
         repo_path: str,
         top_k: int = 10,
+        tenant_id: Optional[str] = None,
     ) -> List[Dict]:
         """
         Search *repo_path* for Python symbols and text matching *query*.
@@ -65,14 +66,34 @@ class CodeSearchTool:
             ``snippet``      — up to 10 lines of source context
             ``line_number``  — 1-based line number of the match
         """
+        import time
+        import asyncio
+        from services.tool_logger import log_tool_execution
+
+        start_time = time.perf_counter()
+        tool_id = "00000000-0000-0000-0001-000000000003"
+
+        def _log(status: str, error: Optional[str] = None):
+            if tenant_id:
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                asyncio.create_task(log_tool_execution(
+                    tenant_id=tenant_id,
+                    tool_id=tool_id,
+                    status=status,
+                    latency_ms=latency_ms,
+                    error_message=error
+                ))
+
         root = Path(repo_path)
         if not root.exists():
             logger.warning("CodeSearchTool: repo_path %s does not exist.", repo_path)
+            _log("failed", f"repo_path {repo_path} does not exist")
             return []
 
         py_files = list(root.rglob("*.py"))
         if not py_files:
             logger.info("No Python files found under %s.", repo_path)
+            _log("success")
             return []
 
         results: List[Dict] = []
@@ -88,6 +109,7 @@ class CodeSearchTool:
 
         # Sort by symbol matches first, then text matches; stable sort
         results.sort(key=lambda r: (0 if r["symbol_type"] != "text_match" else 1))
+        _log("success")
         return results[:top_k]
 
     # ------------------------------------------------------------------

@@ -16,6 +16,16 @@ services:
     environment:
       - ENV=production
 
+  worker:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+    environment:
+      - ENV=production
+
   redis:
     restart: unless-stopped
     deploy:
@@ -34,5 +44,20 @@ services:
           cpus: '4.0'
           memory: 16G
 
+  postgres:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${DB_NAME:-rag_db}
+      POSTGRES_USER: ${DB_USER:-rag_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-rag_password}
+
 volumes:
   redis_data:
+  postgres_data:

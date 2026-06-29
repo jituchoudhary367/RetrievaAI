@@ -165,12 +165,35 @@ class QueryRequest(APIModel):
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     max_tokens: Optional[int] = Field(default=None, ge=1, le=8000)
 
+    # §1.10 — three new optional fields that make chat controls functional.
+    # model_override is validated against an allow-list before being passed to LLM.
+    model_override: Optional[str] = Field(
+        default=None,
+        description="Override the default LLM model (validated against allow-list)",
+    )
+    retrieval_mode: Optional[str] = Field(
+        default="hybrid",
+        description="One of: hybrid, vector, keyword. Controls which retrieval legs to use.",
+    )
+    force_web_search: bool = Field(
+        default=False,
+        description="Treat as a manual web-search trigger alongside CRAG's automatic one.",
+    )
+
     @field_validator("query")
     @classmethod
     def _strip_and_validate_query(cls, v: str) -> str:
         v = v.strip()
         if not v:
             raise ValueError("query must not be empty or whitespace-only")
+        return v
+
+    @field_validator("retrieval_mode")
+    @classmethod
+    def _validate_retrieval_mode(cls, v: Optional[str]) -> Optional[str]:
+        allowed = {"hybrid", "vector", "keyword"}
+        if v is not None and v not in allowed:
+            raise ValueError(f"retrieval_mode must be one of {sorted(allowed)}")
         return v
 
     @model_validator(mode="after")
@@ -284,6 +307,11 @@ class ResponseMetadata(APIModel):
     total_latency_ms: Optional[float] = Field(default=None, ge=0.0)
     token_usage: Optional[TokenUsage] = Field(default=None)
     model_name: Optional[str] = Field(default=None)
+    # §1.10 — three new additive fields surfacing retrieval counts the
+    # HybridRetriever and Reranker already compute internally.
+    retrieved_count: int = Field(default=0, ge=0)
+    reranked_count: int = Field(default=0, ge=0)
+    top_k: int = Field(default=5, ge=0)
 
 
 class ChatResponse(APIModel):

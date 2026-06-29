@@ -22,6 +22,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers.set("Content-Type", "application/json");
   }
 
+  // Inject JWT Token
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("token");
+    if (token && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
   const response = await fetch(url, { ...init, headers });
 
   if (!response.ok) {

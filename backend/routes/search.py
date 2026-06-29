@@ -1,12 +1,30 @@
+"""
+routes/search.py
+
+Search endpoints (§1.1):
+  POST /api/search (vector/hybrid document search)
+  POST /api/search/web (Tavily external search)
+  POST /api/search/code (GitHub external search)
+  POST /api/search/events/click (telemetry)
+"""
+
+import asyncio
 import time
-from fastapi import APIRouter, Depends
 from typing import List
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from app.models import SearchRequest, SearchResponse, SearchResult
 from retrieval.hybrid_retriever import HybridRetriever
 from retrieval.reranker import Reranker
 from pipeline.embedder import Embedder
 from pipeline.indexer import QdrantIndexer, BM25Index
+from security.auth import get_current_user
+from db.models.user import User
+from services.telemetry import record_search_event, record_search_click
+from tools.web_search import WebSearchTool
+from tools.code_search import CodeSearchTool
 
 router = APIRouter(tags=["Search"])
 
@@ -22,19 +40,26 @@ def get_reranker() -> Reranker:
 @router.post("/search", response_model=SearchResponse)
 async def search(
     request: SearchRequest,
+    current_user: User = Depends(get_current_user),
     retriever: HybridRetriever = Depends(get_hybrid_retriever),
     reranker: Reranker = Depends(get_reranker)
 ) -> SearchResponse:
     start_time = time.perf_counter()
     
-    # Retrieve
+    # Force tenant isolation filter
+    from app.models import MetadataFilter
+    tenant_filter = MetadataFilter(key="tenant_id", value=current_user.tenant_id)
+    if request.filters:
+        request.filters.append(tenant_filter)
+    else:
+        request.filters = [tenant_filter]
+
     chunks = retriever.retrieve(
         query=request.query,
         top_k=request.top_k,
         filters=request.filters
     )
     
-    # Rerank
     if request.rerank and chunks:
         chunks = reranker.rerank(
             query=request.query, 
@@ -42,10 +67,8 @@ async def search(
             top_k=request.top_k
         )
         
-    # Map to SearchResult
     results: List[SearchResult] = []
     for chunk in chunks:
-        # Use rerank score if available, fallback to fused or dense/sparse
         score = chunk.rerank_score
         if score is None:
             score = chunk.fused_score
@@ -65,10 +88,95 @@ async def search(
         
     latency_ms = (time.perf_counter() - start_time) * 1000.0
     
-    return SearchResponse(
+    # ── Telemetry Fire & Forget ──
+    # We await record_search_event to get the event ID, which is returned to the client 
+    # so they can submit click events against it.
+    event_id = await record_search_event(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        query_text=request.query,
+        result_count=len(results),
+        latency_ms=latency_ms
+    )
+    
+    response = SearchResponse(
         query=request.query,
         results=results,
         total_results=len(results),
         latency_ms=latency_ms,
-        debug_info={"raw_retrieved_count": len(chunks)} if request.include_debug_info else None
+        debug_info={"raw_retrieved_count": len(chunks), "search_event_id": event_id} if request.include_debug_info else {"search_event_id": event_id}
     )
+    # Inject search_event_id into debug_info so the frontend can retrieve it.
+    if not response.debug_info:
+        response.debug_info = {}
+    response.debug_info["search_event_id"] = event_id
+    
+    return response
+
+
+# ── Web Search ──
+class WebSearchRequest(BaseModel):
+    query: str
+    max_results: int = 5
+
+class WebSearchResponse(BaseModel):
+    results: List[dict]
+    latency_ms: float
+
+@router.post("/search/web", response_model=WebSearchResponse)
+async def search_web(
+    request: WebSearchRequest,
+    current_user: User = Depends(get_current_user),
+) -> WebSearchResponse:
+    start_time = time.perf_counter()
+    tool = WebSearchTool()
+    tool_results = tool.execute(query=request.query, max_results=request.max_results)
+    latency_ms = (time.perf_counter() - start_time) * 1000.0
+    
+    return WebSearchResponse(
+        results=tool_results,
+        latency_ms=latency_ms
+    )
+
+
+# ── Code Search ──
+class CodeSearchRequest(BaseModel):
+    query: str
+    repo: str
+    max_results: int = 5
+
+class CodeSearchResponse(BaseModel):
+    results: List[dict]
+    latency_ms: float
+
+@router.post("/search/code", response_model=CodeSearchResponse)
+async def search_code(
+    request: CodeSearchRequest,
+    current_user: User = Depends(get_current_user),
+) -> CodeSearchResponse:
+    start_time = time.perf_counter()
+    tool = CodeSearchTool()
+    tool_results = tool.execute(query=request.query, repo=request.repo, max_results=request.max_results)
+    latency_ms = (time.perf_counter() - start_time) * 1000.0
+    
+    return CodeSearchResponse(
+        results=tool_results,
+        latency_ms=latency_ms
+    )
+
+
+# ── Click Telemetry ──
+class SearchClickRequest(BaseModel):
+    search_event_id: str
+    chunk_id: str
+
+@router.post("/search/events/click", status_code=204)
+async def search_click_event(
+    request: SearchClickRequest,
+    current_user: User = Depends(get_current_user),
+) -> None:
+    # Fire and forget
+    asyncio.create_task(record_search_click(
+        search_event_id=request.search_event_id,
+        chunk_id=request.chunk_id
+    ))

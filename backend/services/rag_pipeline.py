@@ -152,8 +152,15 @@ class RAGPipeline:
 
         # 8. CRAG correction
         settings = get_settings()
+        tenant_id = None
+        if request.filters:
+            for f in request.filters:
+                if f.key == "tenant_id":
+                    tenant_id = str(f.value)
+                    break
+                    
         if settings.features.enable_crag:
-            reranked = self._crag.correct(request.query, reranked)
+            reranked = self._crag.correct(request.query, reranked, tenant_id=tenant_id)
 
         # 9. Context builder
         context_str, citations = self._build_context(reranked)
@@ -275,8 +282,16 @@ class RAGPipeline:
 
         settings = get_settings()
         reranked = self._reranker.rerank(request.query, unique_chunks, top_n=request.top_k)
+        
+        tenant_id = None
+        if request.filters:
+            for f in request.filters:
+                if f.key == "tenant_id":
+                    tenant_id = str(f.value)
+                    break
+                    
         if settings.features.enable_crag:
-            reranked = self._crag.correct(request.query, reranked)
+            reranked = self._crag.correct(request.query, reranked, tenant_id=tenant_id)
 
         context_str, citations = self._build_context(reranked)
 
