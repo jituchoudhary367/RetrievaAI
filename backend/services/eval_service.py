@@ -96,28 +96,28 @@ def _compute_metrics(
     }
 
 
-async def run_eval(tenant_id: str) -> str:
+async def run_eval() -> str:
     """
-    Run a full evaluation pass for *tenant_id*.
+    Run a full evaluation pass.
 
     Returns the EvalRun ID.
     """
     async with async_session_factory() as db:
         # Create the EvalRun row
-        run = EvalRun(tenant_id=tenant_id, status="running")
+        run = EvalRun(status="running")
         db.add(run)
         await db.flush()
         run_id = run.id
 
-        # Load all EvalQuery rows for this tenant
+        # Load all EvalQuery rows
         result = await db.execute(
-            select(EvalQuery).where(EvalQuery.tenant_id == tenant_id)
+            select(EvalQuery)
         )
         eval_queries = result.scalars().all()
 
         if not eval_queries:
             run.status = "completed"
-            run.metrics = json.dumps({"error": "No eval queries defined for this tenant"})
+            run.metrics = json.dumps({"error": "No eval queries defined"})
             run.completed_at = datetime.now(timezone.utc)
             await db.commit()
             return run_id
@@ -148,11 +148,10 @@ async def run_eval(tenant_id: str) -> str:
     return run_id
 
 
-async def get_latest_eval_run(db: AsyncSession, tenant_id: str) -> Optional[EvalRun]:
-    """Return the most recent EvalRun for a tenant."""
+async def get_latest_eval_run(db: AsyncSession) -> Optional[EvalRun]:
+    """Return the most recent EvalRun."""
     result = await db.execute(
         select(EvalRun)
-        .where(EvalRun.tenant_id == tenant_id)
         .order_by(EvalRun.triggered_at.desc())
         .limit(1)
     )

@@ -12,7 +12,7 @@ import asyncio
 import time
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 
 from app.models import SearchRequest, SearchResponse, SearchResult
@@ -21,8 +21,7 @@ from retrieval.reranker import Reranker
 from pipeline.embedder import Embedder
 from pipeline.indexer import QdrantIndexer, BM25Index
 from security.auth import get_current_user
-from security.rbac import require_permission, Permission
-from app.models import TenantContext
+from db.models.user import User
 from db.models.user import User
 from services.telemetry import record_search_event, record_search_click
 from tools.web_search import WebSearchTool
@@ -33,8 +32,7 @@ router = APIRouter(tags=["Search"])
 def get_hybrid_retriever() -> HybridRetriever:
     embedder = Embedder()
     qdrant = QdrantIndexer()
-    bm25 = BM25Index()
-    return HybridRetriever(embedder=embedder, qdrant_indexer=qdrant, bm25_index=bm25)
+    return HybridRetriever(embedder=embedder, qdrant_indexer=qdrant)
 
 def get_reranker() -> Reranker:
     return Reranker()
@@ -43,22 +41,16 @@ def get_reranker() -> Reranker:
 async def search(
     request: SearchRequest,
     current_user: User = Depends(get_current_user),
-    tenant_context: TenantContext = Depends(require_permission(Permission.SEARCH_READ)),
     retriever: HybridRetriever = Depends(get_hybrid_retriever),
     reranker: Reranker = Depends(get_reranker)
 ) -> SearchResponse:
     start_time = time.perf_counter()
     
-    # Force tenant isolation filter
-    from app.models import MetadataFilter
-    tenant_filter = MetadataFilter(key="tenant_id", value=current_user.tenant_id)
-    if request.filters:
-        request.filters.append(tenant_filter)
-    else:
-        request.filters = [tenant_filter]
+
 
     chunks = retriever.retrieve(
         query=request.query,
+        user_id=current_user.id,
         top_k=request.top_k,
         filters=request.filters
     )
@@ -95,7 +87,6 @@ async def search(
     # We await record_search_event to get the event ID, which is returned to the client 
     # so they can submit click events against it.
     event_id = await record_search_event(
-        tenant_id=current_user.tenant_id,
         user_id=current_user.id,
         query_text=request.query,
         result_count=len(results),
@@ -130,7 +121,6 @@ class WebSearchResponse(BaseModel):
 async def search_web(
     request: WebSearchRequest,
     current_user: User = Depends(get_current_user),
-    tenant_context: TenantContext = Depends(require_permission(Permission.SEARCH_READ)),
 ) -> WebSearchResponse:
     start_time = time.perf_counter()
     tool = WebSearchTool()
@@ -157,7 +147,6 @@ class CodeSearchResponse(BaseModel):
 async def search_code(
     request: CodeSearchRequest,
     current_user: User = Depends(get_current_user),
-    tenant_context: TenantContext = Depends(require_permission(Permission.SEARCH_READ)),
 ) -> CodeSearchResponse:
     start_time = time.perf_counter()
     tool = CodeSearchTool()
@@ -175,14 +164,14 @@ class SearchClickRequest(BaseModel):
     search_event_id: str
     chunk_id: str
 
-@router.post("/search/events/click", status_code=204)
+@router.post("/search/events/click", status_code=200)
 async def search_click_event(
     request: SearchClickRequest,
     current_user: User = Depends(get_current_user),
-    tenant_context: TenantContext = Depends(require_permission(Permission.SEARCH_READ)),
 ) -> None:
     # Fire and forget
     asyncio.create_task(record_search_click(
+        user_id=current_user.id,
         search_event_id=request.search_event_id,
         chunk_id=request.chunk_id
     ))

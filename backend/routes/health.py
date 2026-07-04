@@ -60,7 +60,7 @@ def readiness() -> JSONResponse:
         client = QdrantClient(
             host=settings.qdrant.host,
             port=settings.qdrant.port,
-            timeout=1.0,
+            timeout=5.0,
             api_key=settings.qdrant.api_key,
         )
         collections = client.get_collections()

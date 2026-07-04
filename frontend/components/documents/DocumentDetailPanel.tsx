@@ -17,13 +17,16 @@ export function DocumentDetailPanel({ document, onClose }: any) {
 
   if (!document) return null;
 
+  const docType = document.type || 'unknown';
+  const tags = document.tags || [];
+
   return (
     <div className="flex flex-col h-full relative">
       
       {/* Header */}
       <div className="flex items-center justify-between p-6 pb-2">
         <h2 className="text-sm font-semibold text-foreground truncate pr-4">{document.title}</h2>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
+        <button onClick={() => onClose()} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
           <X className="h-5 w-5" />
         </button>
       </div>
@@ -49,10 +52,10 @@ export function DocumentDetailPanel({ document, onClose }: any) {
         
         {/* Hero Card */}
         <div className="flex items-start space-x-4">
-          {getBigIcon(document.type)}
+          {getBigIcon(docType)}
           <div className="flex flex-col space-y-1 overflow-hidden">
             <span className="text-sm font-semibold text-foreground truncate">{document.title}</span>
-            <span className="text-xs text-muted-foreground">{document.type.toUpperCase()} Document • {document.size}</span>
+            <span className="text-xs text-muted-foreground">{docType.toUpperCase()} Document • {document.size}</span>
             <span className="text-[10px] font-mono text-muted-foreground mt-1 truncate">{document.source}</span>
             <span className="text-[10px] text-muted-foreground mt-1">Uploaded: {document.uploaded}</span>
             <span className="text-[10px] text-muted-foreground">Uploaded by: {document.uploader || 'System'}</span>
@@ -72,94 +75,102 @@ export function DocumentDetailPanel({ document, onClose }: any) {
           </div>
         )}
 
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { label: 'Chunks', val: document.chunks },
-            { label: 'Pages', val: document.pages || '-' },
-            { label: 'Words', val: document.words || '-' },
-            { label: 'Tokens', val: document.tokens || '-' },
-          ].map((stat) => (
-            <div key={stat.label} className="flex flex-col items-center justify-center bg-[#12181f] border border-[#1e2329] rounded-lg p-2 py-3">
-              <span className="text-[10px] text-muted-foreground mb-1">{stat.label}</span>
-              <span className="text-xs font-semibold text-foreground">{stat.val}</span>
+        {/* Tabs Content */}
+        {activeTab === 'Overview' && (
+          <>
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: 'Chunks', val: document.chunks },
+                { label: 'Pages', val: document.pages || '-' },
+                { label: 'Words', val: document.words || '-' },
+                { label: 'Tokens', val: document.tokens || '-' },
+              ].map((stat) => (
+                <div key={stat.label} className="flex flex-col items-center justify-center bg-[#12181f] border border-[#1e2329] rounded-lg p-2 py-3">
+                  <span className="text-[10px] text-muted-foreground mb-1">{stat.label}</span>
+                  <span className="text-xs font-semibold text-foreground">{stat.val}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Tags */}
-        <div className="flex flex-col space-y-3">
-          <span className="text-xs font-semibold text-foreground">Tags</span>
-          <div className="flex flex-wrap gap-2">
-            {document.tags.map((tag: string) => (
-              <span key={tag} className="text-[10px] px-2 py-1 bg-[#1e2329] border border-[#30363d] rounded-full text-muted-foreground">
-                {tag}
-              </span>
-            ))}
-            <button className="flex items-center justify-center w-6 h-6 rounded-full bg-[#1e2329] border border-[#30363d] text-muted-foreground hover:text-foreground transition-colors">
-              <Plus className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* Description */}
-        <div className="flex flex-col space-y-2">
-          <span className="text-xs font-semibold text-foreground">Description</span>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {document.description || "No description provided for this document."}
-          </p>
-          {document.description && (
-            <button className="text-left text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
-              Show more
-            </button>
-          )}
-        </div>
-
-        {/* Source Info Table */}
-        <div className="flex flex-col space-y-3">
-          <span className="text-xs font-semibold text-foreground">Source Information</span>
-          <div className="flex flex-col space-y-2">
-            <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-              <span className="text-xs text-muted-foreground">Source Type</span>
-              <span className="text-xs text-foreground uppercase">{document.type}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-              <span className="text-xs text-muted-foreground">Original Filename</span>
-              <span className="text-xs text-foreground truncate max-w-[180px] text-right" title={document.title}>{document.title.replace(/ /g, '_')}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-              <span className="text-xs text-muted-foreground">File Path</span>
-              <span className="text-[10px] text-foreground font-mono truncate max-w-[180px] text-right" title={`${document.source}/${document.title.replace(/ /g, '_')}`}>
-                {document.source}/{document.title.replace(/ /g, '_')}
-              </span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[#1e2329] pb-2 group">
-              <span className="text-xs text-muted-foreground">Checksum</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-[10px] text-foreground font-mono">{document.checksum || 'N/A'}</span>
-                <button className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground">
-                  <Copy className="h-3 w-3" />
+            {/* Tags */}
+            <div className="flex flex-col space-y-3">
+              <span className="text-xs font-semibold text-foreground">Tags</span>
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag: string) => (
+                  <span key={tag} className="text-[10px] px-2 py-1 bg-[#1e2329] border border-[#30363d] rounded-full text-muted-foreground">
+                    {tag}
+                  </span>
+                ))}
+                <button className="flex items-center justify-center w-6 h-6 rounded-full bg-[#1e2329] border border-[#30363d] text-muted-foreground hover:text-foreground transition-colors">
+                  <Plus className="h-3 w-3" />
                 </button>
               </div>
             </div>
-          </div>
-        </div>
 
+            {/* Description */}
+            <div className="flex flex-col space-y-2">
+              <span className="text-xs font-semibold text-foreground">Description</span>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {document.description || "No description provided for this document."}
+              </p>
+              {document.description && (
+                <button className="text-left text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
+                  Show more
+                </button>
+              )}
+            </div>
+
+            {/* Source Info Table */}
+            <div className="flex flex-col space-y-3">
+              <span className="text-xs font-semibold text-foreground">Source Information</span>
+              <div className="flex flex-col space-y-2">
+                <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                  <span className="text-xs text-muted-foreground">Source Type</span>
+                  <span className="text-xs text-foreground uppercase">{docType}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                  <span className="text-xs text-muted-foreground">Original Filename</span>
+                  <span className="text-xs text-foreground truncate max-w-[180px] text-right" title={document.title}>{document.title.replace(/ /g, '_')}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                  <span className="text-xs text-muted-foreground">File Path</span>
+                  <span className="text-[10px] text-foreground font-mono truncate max-w-[180px] text-right" title={`${document.source}/${document.title.replace(/ /g, '_')}`}>
+                    {document.source}/{document.title.replace(/ /g, '_')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#1e2329] pb-2 group">
+                  <span className="text-xs text-muted-foreground">Checksum</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] text-foreground font-mono">{document.checksum || 'N/A'}</span>
+                    <button className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground">
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+        {activeTab !== 'Overview' && (
+          <div className="text-center text-muted-foreground text-xs p-4">
+            No {activeTab.toLowerCase()} data available yet.
+          </div>
+        )}
       </div>
 
       {/* Footer Buttons Fixed */}
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-[#0d1117] border-t border-[#30363d] flex items-center justify-between space-x-2">
-        <button className="flex-1 flex items-center justify-center space-x-1 py-2 rounded border border-[#10b981]/50 text-[#10b981] hover:bg-[#10b981]/10 transition-colors text-xs font-medium">
-          <Eye className="h-3.5 w-3.5" />
-          <span>Preview</span>
-        </button>
-        <button className="flex-1 flex items-center justify-center space-x-1 py-2 rounded border border-[#30363d] text-muted-foreground hover:text-foreground hover:bg-[#30363d]/50 transition-colors text-xs font-medium">
-          <Download className="h-3.5 w-3.5" />
-          <span>Download</span>
-        </button>
-        <button className="flex-1 flex items-center justify-center space-x-1 py-2 rounded border border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors text-xs font-medium">
+        <button 
+          onClick={async () => {
+            if (confirm("Are you sure you want to delete this document?")) {
+              if (onClose) onClose(document.id, true);
+            }
+          }}
+          className="flex-1 flex items-center justify-center space-x-1 py-2 rounded border border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors text-xs font-medium"
+        >
           <Trash2 className="h-3.5 w-3.5" />
-          <span>Delete</span>
+          <span>Delete Document</span>
         </button>
       </div>
 

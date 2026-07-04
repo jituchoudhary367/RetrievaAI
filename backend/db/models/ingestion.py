@@ -16,13 +16,14 @@ from typing import Optional
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from db.base import Base, TenantMixin, _new_uuid
+from db.base import Base, _new_uuid
 
 
-class IngestionJob(Base, TenantMixin):
+class IngestionJob(Base):
     __tablename__ = "ingestion_jobs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     source_path_or_url: Mapped[str] = mapped_column(Text, nullable=False)
     source_type: Mapped[Optional[str]] = mapped_column(String(50))
     # status: queued | processing | completed | failed | cancelled

@@ -16,7 +16,10 @@ services:
       - DB_PORT=5432
       - REDIS_HOST=redis
       - QDRANT_HOST=qdrant
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     volumes:
+      - .:/app
+      - /app/.venv
       - bm25_data:/app/data
       - blob_data:/app/data/blobs
     depends_on:
@@ -47,6 +50,8 @@ services:
       - REDIS_HOST=redis
       - QDRANT_HOST=qdrant
     volumes:
+      - .:/app
+      - /app/.venv
       - bm25_data:/app/data
       - blob_data:/app/data/blobs
     depends_on:
@@ -76,7 +81,7 @@ services:
       - qdrant_data:/qdrant/storage
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:15-alpine
     environment:
       POSTGRES_DB: rag_db
       POSTGRES_USER: rag_user

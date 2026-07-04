@@ -1,0 +1,8 @@
+*.zip
+qdrant/
+redis/
+backend/data/
+.vscode/
+__pycache__/
+.env
+.env.local

@@ -3,14 +3,15 @@ import { DocumentRow, DocumentCreate } from "../types/backend";
 
 export const documentsApi = {
   listDocuments: async (): Promise<DocumentRow[]> => {
-    return apiFetch<DocumentRow[]>("/api/v1/documents", { method: "GET" });
+    const res = await apiFetch<any>("/api/documents", { method: "GET" });
+    return res.items || [];
   },
 
   getDocument: async (id: string): Promise<DocumentRow> => {
-    return apiFetch<DocumentRow>(`/api/v1/documents/${id}`, { method: "GET" });
+    return apiFetch<DocumentRow>(`/api/documents/${id}`, { method: "GET" });
   },
 
   deleteDocument: async (id: string): Promise<void> => {
-    return apiFetch<void>(`/api/v1/documents/${id}`, { method: "DELETE" });
+    return apiFetch<void>(`/api/documents/${id}`, { method: "DELETE" });
   },
 };

@@ -36,7 +36,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(url, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetch(url, { ...init, headers });
+  } catch (networkErr: any) {
+    // Connection refused, CORS failure, or offline
+    throw new ApiError(0, [{ code: "NETWORK_ERROR", message: "Cannot reach the API server. Please make sure the backend is running." }], networkErr?.message || "Failed to fetch");
+  }
 
   if (!response.ok) {
     let errorResponse: ErrorResponse | null = null;

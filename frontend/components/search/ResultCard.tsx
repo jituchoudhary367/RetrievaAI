@@ -1,7 +1,7 @@
 import React from "react";
 import { SearchResult } from "../../lib/types/models";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
-import { Badge } from "../ui/Badge";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge } from "../ui/badge";
 
 export function ResultCard({ result }: { result: SearchResult }) {
   const isVector = result.source === "vector";

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 async def log_tool_execution(
     *,
-    tenant_id: str,
+
     tool_id: str,
     status: str,  # "success" or "failed"
     latency_ms: Optional[float] = None,
@@ -29,7 +29,7 @@ async def log_tool_execution(
     try:
         async with async_session_factory() as db:
             db.add(ToolExecution(
-                tenant_id=tenant_id,
+
                 tool_id=tool_id,
                 status=status,
                 latency_ms=latency_ms,

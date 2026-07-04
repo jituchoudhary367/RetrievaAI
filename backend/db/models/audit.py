@@ -17,10 +17,10 @@ from typing import Optional
 from sqlalchemy import DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from db.base import Base, TenantMixin, _new_uuid
+from db.base import Base, _new_uuid
 
 
-class AuditLogEntry(Base, TenantMixin):
+class AuditLogEntry(Base):
     __tablename__ = "audit_log_entries"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)

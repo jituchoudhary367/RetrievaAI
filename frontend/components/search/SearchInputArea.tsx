@@ -3,7 +3,21 @@
 import React from 'react';
 import { Search, X, BarChart } from 'lucide-react';
 
-export function SearchInputArea({ query, setQuery }: { query: string, setQuery: (q: string) => void }) {
+export function SearchInputArea({ 
+  query, 
+  setQuery, 
+  onSearch, 
+  isLoading,
+  activeTab = "All Results",
+  onTabChange
+}: { 
+  query: string, 
+  setQuery: (q: string) => void,
+  onSearch?: () => void,
+  isLoading?: boolean,
+  activeTab?: string,
+  onTabChange?: (tab: string) => void
+}) {
   const tabs = ["All Results", "Documents", "Code", "Web", "Knowledge Base"];
 
   return (
@@ -17,6 +31,7 @@ export function SearchInputArea({ query, setQuery }: { query: string, setQuery: 
           type="text" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && onSearch && onSearch()}
           className="flex-1 bg-transparent border-none outline-none text-foreground text-base placeholder-muted-foreground px-2 py-2"
           placeholder="Search..."
         />
@@ -28,9 +43,13 @@ export function SearchInputArea({ query, setQuery }: { query: string, setQuery: 
             <X className="h-4 w-4" />
           </button>
         )}
-        <button className="bg-[#122822] hover:bg-[#1a382f] border border-[#10b981]/30 text-[#10b981] px-6 py-2 rounded-md font-medium text-sm transition-colors flex items-center">
+        <button 
+          onClick={onSearch}
+          disabled={isLoading}
+          className="bg-[#122822] hover:bg-[#1a382f] border border-[#10b981]/30 text-[#10b981] px-6 py-2 rounded-md font-medium text-sm transition-colors flex items-center disabled:opacity-50"
+        >
           <Search className="h-4 w-4 mr-2" />
-          Search
+          {isLoading ? 'Searching...' : 'Search'}
         </button>
       </div>
 
@@ -39,8 +58,9 @@ export function SearchInputArea({ query, setQuery }: { query: string, setQuery: 
         {tabs.map((tab, i) => (
           <button 
             key={i}
+            onClick={() => onTabChange && onTabChange(tab)}
             className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
-              i === 0 
+              activeTab === tab 
                 ? 'border-[#10b981] text-[#e6edf3]' 
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-[#4b5563]'
             }`}
@@ -50,18 +70,7 @@ export function SearchInputArea({ query, setQuery }: { query: string, setQuery: 
         ))}
       </div>
 
-      {/* Info Line */}
-      <div className="flex items-center justify-between mt-6 px-1">
-        <div className="flex items-center text-xs text-muted-foreground">
-          <span>About 128 results (0.42s)</span>
-          <BarChart className="ml-2 h-3.5 w-3.5" />
-        </div>
-        <div className="flex items-center text-xs text-muted-foreground space-x-1 cursor-pointer hover:text-foreground">
-          <span>Sort by:</span>
-          <span className="font-medium text-foreground">Relevance</span>
-          <span className="ml-1 text-[10px]">⌄</span>
-        </div>
-      </div>
+      {/* Info Line Removed */}
     </div>
   );
 }

@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 # =============================================================================
 # Dockerfile — Production image for the RAG API service
 #
@@ -42,6 +40,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VERSION=${POETRY_VERSION} \
     POETRY_HOME="/opt/poetry" \
     POETRY_NO_INTERACTION=1 \
+    POETRY_REQUESTS_TIMEOUT=300 \
     POETRY_VIRTUALENVS_IN_PROJECT=1 \
     POETRY_VIRTUALENVS_CREATE=1 \
     POETRY_CACHE_DIR="/tmp/poetry_cache"
@@ -60,11 +59,11 @@ RUN apt-get update \
 # Install Poetry itself in an isolated location (not the project venv).
 RUN curl -sSL https://install.python-poetry.org | python3 - --version "${POETRY_VERSION}"
 
-WORKDIR /build
+WORKDIR /app
 
 # Copy only dependency manifests first so dependency installation is cached
 # independently of application source-code changes.
-COPY pyproject.toml poetry.lock* /build/
+COPY pyproject.toml poetry.lock* /app/
 
 # Which optional dependency groups (see pyproject.toml [tool.poetry.extras])
 # to install into the image. Override at build time with
@@ -80,18 +79,20 @@ RUN --mount=type=cache,target=/tmp/poetry_cache \
 
 # Now copy every top-level source package — these are siblings of app/ in
 # the repo root, not nested under it, so each must be copied explicitly
-# (a single `COPY app /build/app` would silently omit all of them and
+# (a single `COPY app /app/app` would silently omit all of them and
 # produce an image that crashes on import at runtime).
-COPY app /build/app
-COPY routes /build/routes
-COPY services /build/services
-COPY retrieval /build/retrieval
-COPY agents /build/agents
-COPY tools /build/tools
-COPY prompts /build/prompts
-COPY security /build/security
-COPY pipeline /build/pipeline
-COPY README.md /build/README.md
+COPY app /app/app
+COPY routes /app/routes
+COPY services /app/services
+COPY retrieval /app/retrieval
+COPY agents /app/agents
+COPY tools /app/tools
+COPY prompts /app/prompts
+COPY security /app/security
+COPY pipeline /app/pipeline
+COPY db /app/db
+COPY tasks /app/tasks
+COPY README.md /app/README.md
 
 RUN --mount=type=cache,target=/tmp/poetry_cache \
     poetry install --only main --extras "${INSTALL_EXTRAS}" --no-ansi
@@ -138,16 +139,18 @@ WORKDIR ${APP_HOME}
 # builder stage — no compilers or package managers end up in this image.
 # Every top-level package is copied explicitly (siblings of app/, not
 # nested under it) so nothing is silently left out of the image.
-COPY --from=builder --chown=appuser:appgroup /build/.venv ${APP_HOME}/.venv
-COPY --from=builder --chown=appuser:appgroup /build/app ${APP_HOME}/app
-COPY --from=builder --chown=appuser:appgroup /build/routes ${APP_HOME}/routes
-COPY --from=builder --chown=appuser:appgroup /build/services ${APP_HOME}/services
-COPY --from=builder --chown=appuser:appgroup /build/retrieval ${APP_HOME}/retrieval
-COPY --from=builder --chown=appuser:appgroup /build/agents ${APP_HOME}/agents
-COPY --from=builder --chown=appuser:appgroup /build/tools ${APP_HOME}/tools
-COPY --from=builder --chown=appuser:appgroup /build/prompts ${APP_HOME}/prompts
-COPY --from=builder --chown=appuser:appgroup /build/security ${APP_HOME}/security
-COPY --from=builder --chown=appuser:appgroup /build/pipeline ${APP_HOME}/pipeline
+COPY --from=builder --chown=appuser:appgroup /app/.venv ${APP_HOME}/.venv
+COPY --from=builder --chown=appuser:appgroup /app/app ${APP_HOME}/app
+COPY --from=builder --chown=appuser:appgroup /app/routes ${APP_HOME}/routes
+COPY --from=builder --chown=appuser:appgroup /app/services ${APP_HOME}/services
+COPY --from=builder --chown=appuser:appgroup /app/retrieval ${APP_HOME}/retrieval
+COPY --from=builder --chown=appuser:appgroup /app/agents ${APP_HOME}/agents
+COPY --from=builder --chown=appuser:appgroup /app/tools ${APP_HOME}/tools
+COPY --from=builder --chown=appuser:appgroup /app/prompts ${APP_HOME}/prompts
+COPY --from=builder --chown=appuser:appgroup /app/security ${APP_HOME}/security
+COPY --from=builder --chown=appuser:appgroup /app/pipeline ${APP_HOME}/pipeline
+COPY --from=builder --chown=appuser:appgroup /app/db ${APP_HOME}/db
+COPY --from=builder --chown=appuser:appgroup /app/tasks ${APP_HOME}/tasks
 COPY --chown=appuser:appgroup README.md ${APP_HOME}/README.md
 
 # Writable directories the application needs at runtime (logs, local cache,

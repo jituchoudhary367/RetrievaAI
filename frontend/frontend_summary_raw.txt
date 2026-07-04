@@ -1,0 +1,1232 @@
+File: components.json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "base-nova",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "app/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+----------------------------------------
+File: next-env.d.ts
+----------------------------------------
+File: next.config.ts
+----------------------------------------
+File: package-lock.json
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "frontend",
+      "version": "0.1.0",
+      "dependencies": {
+----------------------------------------
+File: package.json
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+----------------------------------------
+File: tailwind.config.ts
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: [
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+----------------------------------------
+File: tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+----------------------------------------
+File: app\globals.css
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: oklch(1 0 0); /* Main app background */
+    --foreground: oklch(0.145 0 0);
+----------------------------------------
+File: app\layout.tsx
+import type { Metadata } from "next";
+import { Inter, Geist } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
+
+export const metadata: Metadata = {
+----------------------------------------
+File: app\(auth)\layout.tsx
+"use client";
+
+import React from 'react';
+import { Hexagon, Search, MessageSquare, ShieldCheck, Activity, Globe, Sun, Moon } from 'lucide-react';
+import Link from 'next/link';
+
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen flex flex-col md:flex-row bg-[#0b0f19] text-white font-sans selection:bg-[#10b981] selection:text-white dark">
+      {/* Left pane - Visual/Branding (Hidden on mobile) */}
+----------------------------------------
+File: app\(auth)\accept-invite\page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { postAcceptInvite } from "@/lib/api/auth";
+import { setAuthToken } from "@/lib/auth/session";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+export default function AcceptInvitePage() {
+----------------------------------------
+File: app\(auth)\forgot-password\page.tsx
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { postRequestPasswordReset } from "@/lib/api/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Mail, Shield } from "lucide-react";
+
+export default function ForgotPasswordPage() {
+----------------------------------------
+File: app\(auth)\login\page.tsx
+"use client";
+
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { postLogin } from "@/lib/api/auth";
+import { setAuthToken } from "@/lib/auth/session";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { VerifyEmailNotice } from "@/components/auth/VerifyEmailNotice";
+----------------------------------------
+File: app\(auth)\oauth\callback\page.tsx
+"use client";
+
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { setAuthToken } from "@/lib/auth/session";
+import { Hexagon } from "lucide-react";
+
+export default function OAuthCallbackPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+----------------------------------------
+File: app\(auth)\reset-password\page.tsx
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
+
+export default function ResetPasswordPage() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+
+----------------------------------------
+File: app\(auth)\signup\page.tsx
+"use client";
+
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { postSignup } from "@/lib/api/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Mail, Shield, Check, EyeOff, Eye, Lock, Building2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+----------------------------------------
+File: app\(auth)\signup\check-email\page.tsx
+"use client";
+
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+
+export default function CheckEmailPage() {
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email") || "your email address";
+
+  return (
+----------------------------------------
+File: app\(auth)\verify-email\page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { postVerifyEmail } from "@/lib/api/auth";
+
+export default function VerifyEmailPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+----------------------------------------
+File: app\(dashboard)\layout.tsx
+import { AppLayout } from '@/components/layout/AppLayout';
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <AppLayout>
+      {children}
+----------------------------------------
+File: app\(dashboard)\analytics\page.tsx
+"use client";
+
+import React from 'react';
+import { TopBar } from '@/components/layout/TopBar';
+import { AnalyticsStatsRow } from '@/components/analytics/AnalyticsStatsRow';
+import { AnalyticsChartsGrid } from '@/components/analytics/AnalyticsChartsGrid';
+import { AnalyticsMetricsRow } from '@/components/analytics/AnalyticsMetricsRow';
+import { AnalyticsRightPanel } from '@/components/analytics/AnalyticsRightPanel';
+import RequireAuth from '@/components/auth/RequireAuth';
+
+----------------------------------------
+File: app\(dashboard)\chat\page.tsx
+"use client";
+
+import React, { useState, useEffect, useContext } from 'react';
+import { TopBar } from '@/components/layout/TopBar';
+import { ChatWindow } from '@/components/chat/ChatWindow';
+import { SourcesPanel } from '@/components/sources/SourcesPanel';
+import { RetrievalDetailsPanel } from '@/components/context/RetrievalDetailsPanel';
+import { ConversationContextPanel } from '@/components/context/ConversationContextPanel';
+import { ConversationsContext } from '@/components/layout/AppLayout';
+import { useChat } from '@/lib/hooks/useChat';
+----------------------------------------
+File: app\(dashboard)\documents\page.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { TopBar } from '@/components/layout/TopBar';
+import { DocumentStatsRow } from '@/components/documents/DocumentStatsRow';
+import { DocumentListArea } from '@/components/documents/DocumentListArea';
+import { DocumentDetailPanel } from '@/components/documents/DocumentDetailPanel';
+import RequireAuth from '@/components/auth/RequireAuth';
+import { documentsApi } from '@/lib/api/documents';
+import { useEffect } from 'react';
+----------------------------------------
+File: app\(dashboard)\ingestion\page.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { TopBar } from '@/components/layout/TopBar';
+import { IngestionStatsRow } from '@/components/ingestion/IngestionStatsRow';
+import { IngestionUploadArea } from '@/components/ingestion/IngestionUploadArea';
+import { IngestionConfigArea } from '@/components/ingestion/IngestionConfigArea';
+import { IngestionListArea } from '@/components/ingestion/IngestionListArea';
+import { IngestionDetailPanel } from '@/components/ingestion/IngestionDetailPanel';
+import RequireAuth from '@/components/auth/RequireAuth';
+----------------------------------------
+File: app\(dashboard)\search\page.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { TopBar } from '@/components/layout/TopBar';
+import { SearchInputArea } from '@/components/search/SearchInputArea';
+import { AdvancedResultCard } from '@/components/search/AdvancedResultCard';
+import { SearchFiltersPanel } from '@/components/search/SearchFiltersPanel';
+import { SearchAnalyticsPanel } from '@/components/search/SearchAnalyticsPanel';
+import { SearchResult, SearchRequest } from '@/lib/types/models';
+import RequireAuth from '@/components/auth/RequireAuth';
+----------------------------------------
+File: app\(dashboard)\settings\page.tsx
+"use client";
+
+import React from 'react';
+import { TopBar } from '@/components/layout/TopBar';
+import RequireAuth from '@/components/auth/RequireAuth';
+
+export default function SettingsPage() {
+  return (
+    <RequireAuth>
+      <div className="flex flex-col h-full bg-background relative overflow-hidden">
+----------------------------------------
+File: app\(dashboard)\tools\page.tsx
+"use client";
+
+import React from 'react';
+import { TopBar } from '@/components/layout/TopBar';
+import { ToolsStatsRow } from '@/components/tools/ToolsStatsRow';
+import { ToolListArea } from '@/components/tools/ToolListArea';
+import { ToolsRightPanel } from '@/components/tools/ToolsRightPanel';
+import RequireAuth from '@/components/auth/RequireAuth';
+
+export default function ToolsPage() {
+----------------------------------------
+File: app\(marketing)\layout.tsx
+import React from 'react';
+import Link from 'next/link';
+import { Hexagon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+export default function MarketingLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-primary/30">
+      <header className="fixed top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/40">
+        <div className="container flex h-16 max-w-screen-2xl items-center justify-between px-4 md:px-8 mx-auto">
+----------------------------------------
+File: app\(marketing)\page.tsx
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { ArrowRight, Database, Search, MessageSquare, ShieldCheck, Zap, Layers } from 'lucide-react';
+
+export default function LandingPage() {
+  return (
+    <div className="flex flex-col items-center w-full">
+      {/* Hero Section */}
+      <section className="w-full py-28 md:py-40 relative overflow-hidden flex justify-center bg-background">
+        {/* Glow effects */}
+----------------------------------------
+File: components\analytics\AnalyticsChartsGrid.tsx
+"use client";
+
+import React from 'react';
+import { ChevronDown } from 'lucide-react';
+
+export function AnalyticsChartsGrid() {
+  
+  const ChartHeader = ({ title, controls }: any) => (
+    <div className="flex items-center justify-between mb-4">
+      <span className="text-xs font-semibold text-foreground">{title}</span>
+----------------------------------------
+File: components\analytics\AnalyticsMetricsRow.tsx
+"use client";
+
+import React from 'react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
+
+export function AnalyticsMetricsRow() {
+  const MetricItem = ({ label, value, trend, trendUp }: any) => (
+    <div className="flex flex-col space-y-1">
+      <div className="flex items-center space-x-1">
+        <span className="text-[10px] text-muted-foreground">{label}</span>
+----------------------------------------
+File: components\analytics\AnalyticsRightPanel.tsx
+"use client";
+
+import React from 'react';
+import { CheckCircle2, ChevronRight, FileText } from 'lucide-react';
+
+export function AnalyticsRightPanel() {
+  
+  const getIcon = (type: string) => {
+    if (type === 'pdf') return <div className="w-5 h-5 rounded bg-red-500/10 text-red-500 flex items-center justify-center flex-shrink-0 text-[7px] font-bold">PDF</div>;
+    return <div className="w-5 h-5 rounded bg-blue-500/10 text-blue-400 flex items-center justify-center flex-shrink-0 text-[7px] font-bold">MD</div>;
+----------------------------------------
+File: components\analytics\AnalyticsStatsRow.tsx
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import { MessageSquare, CheckCircle, Clock, Database, DollarSign, ArrowUp, ArrowDown } from 'lucide-react';
+import { analyticsApi, AnalyticsOverview } from '../../lib/api/analytics';
+
+export function AnalyticsStatsRow() {
+  const [stats, setStats] = useState<AnalyticsOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+
+----------------------------------------
+File: components\auth\ForgotPasswordForm.tsx
+"use client";
+
+import { useState } from "react";
+import { postRequestPasswordReset } from "@/lib/api/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+export function ForgotPasswordForm() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+----------------------------------------
+File: components\auth\RequireAuth.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { getAuthToken } from "@/lib/auth/session";
+
+interface RequireAuthProps {
+  children: React.ReactNode;
+}
+
+----------------------------------------
+File: components\auth\ResetPasswordForm.tsx
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { postResetPassword } from "@/lib/api/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+export function ResetPasswordForm({ token }: { token: string }) {
+  const router = useRouter();
+----------------------------------------
+File: components\auth\VerifyEmailNotice.tsx
+"use client";
+
+import { useState } from "react";
+import { postResendVerification } from "@/lib/api/auth";
+import { Button } from "@/components/ui/button";
+
+interface VerifyEmailNoticeProps {
+  email: string;
+}
+
+----------------------------------------
+File: components\chat\ChatInput.tsx
+import React, { useState } from "react";
+import { SendHorizontal, Paperclip, Globe, SlidersHorizontal } from "lucide-react";
+
+export function ChatInput({ onSend, disabled }: { onSend: (text: string) => void; disabled?: boolean }) {
+  const [value, setValue] = useState("");
+  const [webSearch, setWebSearch] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (value.trim() && !disabled) {
+----------------------------------------
+File: components\chat\ChatWindow.tsx
+"use client";
+
+import React, { useEffect, useRef } from "react";
+import { ChatMessage, Citation } from "../../lib/types/models";
+import { MessageBubble } from "./MessageBubble";
+import { ChatInput } from "./ChatInput";
+import { StreamingIndicator } from "./StreamingIndicator";
+import { SuggestedFollowUps } from "./SuggestedFollowUps";
+import { getRoles } from "../../lib/auth/session";
+
+----------------------------------------
+File: components\chat\CitationList.tsx
+import React from "react";
+import { Citation } from "../../lib/types/models";
+import { Badge } from "../ui/badge";
+
+export function CitationList({ citations }: { citations: Citation[] }) {
+  if (!citations || citations.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+      {citations.map((citation) => (
+----------------------------------------
+File: components\chat\MessageActions.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { ChatMessage } from '../../lib/types/models';
+import { Copy, RefreshCw, Share2, ThumbsUp, ThumbsDown, Check } from 'lucide-react';
+
+export function MessageActions({ 
+  message, 
+  onRegenerate 
+}: { 
+----------------------------------------
+File: components\chat\MessageBubble.tsx
+"use client";
+
+import React from "react";
+import { ChatMessage, Citation } from "../../lib/types/models";
+import { cn } from "../../lib/utils";
+import { CitationList } from "./CitationList";
+import { PipelineVisualization } from "./PipelineVisualization";
+import { MessageActions } from "./MessageActions";
+import { Hexagon, User as UserIcon } from "lucide-react";
+
+----------------------------------------
+File: components\chat\PipelineVisualization.tsx
+"use client";
+
+import React from 'react';
+import { ResponseMetadata } from '../../lib/types/models';
+import { User, Search, FileText, MessageSquare, Sparkles, CheckCircle2, ExternalLink } from 'lucide-react';
+
+export function PipelineVisualization({ metadata }: { metadata?: ResponseMetadata }) {
+  if (!metadata) return null;
+
+  const Node = ({ icon: Icon, title, subtitle, colorClass }: { icon: any, title: string, subtitle?: string, colorClass: string }) => (
+----------------------------------------
+File: components\chat\StreamingIndicator.tsx
+import React from "react";
+
+export function StreamingIndicator() {
+  return (
+    <span
+      className="inline-block w-2 h-4 ml-1 bg-current animate-pulse align-middle"
+      aria-hidden="true"
+    />
+  );
+}
+----------------------------------------
+File: components\chat\SuggestedFollowUps.tsx
+"use client";
+
+import React from 'react';
+
+const SUGGESTIONS = [
+  "How does hybrid search work?",
+  "What is CRAG?",
+  "How is reranking done?",
+  "Show me chunking strategies"
+];
+----------------------------------------
+File: components\context\ConversationContextPanel.tsx
+"use client";
+
+import React from 'react';
+import { ResponseMetadata } from '../../lib/types/models';
+import { Trash2, ChevronDown } from 'lucide-react';
+
+export function ConversationContextPanel({ 
+  metadata, 
+  contextEnabled, 
+  onToggleContext, 
+----------------------------------------
+File: components\context\RetrievalDetailsPanel.tsx
+"use client";
+
+import React from 'react';
+import { ResponseMetadata, MetadataFilter } from '../../lib/types/models';
+
+export function RetrievalDetailsPanel({ 
+  metadata, 
+  filters 
+}: { 
+  metadata?: ResponseMetadata; 
+----------------------------------------
+File: components\dashboard\ComponentHealthGrid.tsx
+import React from "react";
+import { ComponentHealth } from "../../lib/types/models";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge } from "../ui/badge";
+
+export function ComponentHealthGrid({ components }: { components: ComponentHealth[] }) {
+  if (!components || components.length === 0) return null;
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+----------------------------------------
+File: components\dashboard\HealthStatusCard.tsx
+import React from "react";
+import { HealthStatus } from "../../lib/types/models";
+import { Card, CardContent } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Activity, AlertTriangle, CheckCircle2 } from "lucide-react";
+
+export function HealthStatusCard({ status, label }: { status: HealthStatus; label: string }) {
+  const isHealthy = status === "healthy";
+  const isDegraded = status === "degraded";
+
+----------------------------------------
+File: components\dashboard\MetricsPanel.tsx
+import React from "react";
+import { HealthResponse } from "../../lib/types/models";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Activity, Clock } from "lucide-react";
+
+export function MetricsPanel({ health }: { health: HealthResponse | null }) {
+  if (!health) return null;
+
+  const uptimeHours = (health.uptimeSeconds / 3600).toFixed(1);
+  const uptimeDays = (health.uptimeSeconds / 86400).toFixed(1);
+----------------------------------------
+File: components\documents\DocumentDetailPanel.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { X, FileText, Copy, Eye, Download, Trash2, Plus } from 'lucide-react';
+
+export function DocumentDetailPanel({ document, onClose }: any) {
+  const [activeTab, setActiveTab] = useState('Overview');
+  const tabs = ['Overview', 'Chunks', 'Metadata', 'Activity'];
+
+  const getBigIcon = (type: string) => {
+----------------------------------------
+File: components\documents\DocumentListArea.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { Search, Filter, Tags, FileText, Code, Eye, Download, MoreVertical, LayoutGrid, List } from 'lucide-react';
+
+export function DocumentListArea({ documents, selectedDocId, onSelectDoc }: any) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const getIcon = (type: string) => {
+    switch (type) {
+----------------------------------------
+File: components\documents\DocumentStatsRow.tsx
+"use client";
+
+import React from 'react';
+import { FileText, Database, HardDrive, Star } from 'lucide-react';
+
+export function DocumentStatsRow() {
+  const StatCard = ({ title, value, subtext, icon: Icon, colorClass, iconBg }: any) => (
+    <div className="flex-1 bg-[#12181f] border border-[#1e2329] rounded-xl p-5 hover:border-[#30363d] transition-colors flex items-center justify-between">
+      <div className="flex flex-col space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">{title}</span>
+----------------------------------------
+File: components\ingestion\IngestionConfigArea.tsx
+"use client";
+
+import React from 'react';
+import { Settings, Play, ChevronDown } from 'lucide-react';
+
+export function IngestionConfigArea() {
+  const SelectField = ({ label, value }: { label: string, value: string }) => (
+    <div className="flex flex-col space-y-2 w-full max-w-[180px]">
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <div className="flex items-center justify-between w-full bg-transparent border border-[#30363d] rounded-md px-3 py-2 cursor-not-allowed group">
+----------------------------------------
+File: components\ingestion\IngestionDetailPanel.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { X, FileText, Download, Trash2, Box } from 'lucide-react';
+
+export function IngestionDetailPanel({ job, onClose }: any) {
+  const [activeTab, setActiveTab] = useState('Overview');
+  const tabs = ['Overview', 'Chunks', 'Metadata', 'Logs'];
+
+  const getBigIcon = (type: string) => {
+----------------------------------------
+File: components\ingestion\IngestionListArea.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { Search, Filter, Eye, MoreVertical, FileText, CheckCircle2, Clock, XCircle, Loader2 } from 'lucide-react';
+
+export function IngestionListArea({ jobs, selectedJobId, onSelectJob }: any) {
+  const [activeTab, setActiveTab] = useState('All Ingestions');
+  const tabs = ['All Ingestions', 'Processing', 'Completed', 'Failed', 'Scheduled'];
+
+  const getIcon = (type: string) => {
+----------------------------------------
+File: components\ingestion\IngestionStatsRow.tsx
+"use client";
+
+import React from 'react';
+import { FileUp, Box, CheckCircle2, HardDrive, Clock } from 'lucide-react';
+
+export function IngestionStatsRow() {
+  const StatCard = ({ title, value, subtext, subtext2, icon: Icon, colorClass, iconBg }: any) => (
+    <div className="flex-1 bg-[#12181f] border border-[#1e2329] rounded-xl p-4 hover:border-[#30363d] transition-colors flex items-center justify-between">
+      <div className="flex flex-col space-y-1">
+        <span className="text-[10px] font-semibold text-muted-foreground">{title}</span>
+----------------------------------------
+File: components\ingestion\IngestionUploadArea.tsx
+"use client";
+
+import React, { useRef, useState } from 'react';
+import { UploadCloud, FolderUp, Link } from 'lucide-react';
+import { ingestionApi } from '../../lib/api/ingest';
+
+export function IngestionUploadArea({ onUploadSuccess }: { onUploadSuccess?: () => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+----------------------------------------
+File: components\layout\AppLayout.tsx
+"use client";
+
+import React from 'react';
+import { Sidebar } from './Sidebar';
+import { useConversations } from '../../lib/hooks/useConversations';
+
+export const ConversationsContext = React.createContext<ReturnType<typeof useConversations> | null>(null);
+
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  const conversationsData = useConversations();
+----------------------------------------
+File: components\layout\ConversationList.tsx
+import React from 'react';
+import { ConversationSummary } from '../../lib/storage/conversationStore';
+import { Search, Filter } from 'lucide-react';
+
+export function ConversationList({ 
+  conversations, 
+  activeId, 
+  onSelect 
+}: { 
+  conversations: ConversationSummary[]; 
+----------------------------------------
+File: components\layout\PlaceholderPage.tsx
+"use client";
+
+import React from 'react';
+import { Hammer } from 'lucide-react';
+
+export function PlaceholderPage({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center h-full p-8 text-center bg-background">
+      <div className="glass-panel p-12 rounded-xl flex flex-col items-center max-w-md animate-fade-in">
+        <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+----------------------------------------
+File: components\layout\Sidebar.tsx
+"use client";
+
+import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { 
+  MessageSquare, 
+  Search, 
+  FileText, 
+  DownloadCloud, 
+----------------------------------------
+File: components\layout\StatusBar.tsx
+"use client";
+
+import React from 'react';
+import { useHealthPolling } from '../../lib/hooks/useHealthPolling';
+import { CheckCircle2, AlertTriangle, XCircle, Activity } from 'lucide-react';
+
+export function StatusBar() {
+  const { health, error } = useHealthPolling(10000);
+
+  const getStatusColor = (status: string | undefined) => {
+----------------------------------------
+File: components\layout\TopBar.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { 
+  Bell, 
+  Sun, 
+  ChevronDown,
+  Search,
+  Command
+} from 'lucide-react';
+----------------------------------------
+File: components\search\AdvancedResultCard.tsx
+"use client";
+
+import React from 'react';
+import { MoreVertical, FileText, Code } from 'lucide-react';
+
+export function AdvancedResultCard({ result, index }: { result: any, index: string }) {
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'pdf': 
+        return <div className="w-6 h-6 rounded bg-red-500/20 text-red-500 flex items-center justify-center flex-shrink-0"><FileText className="h-3.5 w-3.5" /></div>;
+----------------------------------------
+File: components\search\FilterBuilder.tsx
+import React from "react";
+import { MetadataFilter } from "../../lib/types/models";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Plus, X } from "lucide-react";
+
+export function FilterBuilder({ filters, onChange }: { filters: MetadataFilter[]; onChange: (f: MetadataFilter[]) => void }) {
+  const addFilter = () => {
+    onChange([...filters, { field: "", operator: "==", value: "" }]);
+  };
+----------------------------------------
+File: components\search\ResultCard.tsx
+import React from "react";
+import { SearchResult } from "../../lib/types/models";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge } from "../ui/badge";
+
+export function ResultCard({ result }: { result: SearchResult }) {
+  const isVector = result.source === "vector";
+  
+  return (
+    <Card className="overflow-hidden">
+----------------------------------------
+File: components\search\SearchAnalyticsPanel.tsx
+"use client";
+
+import React from 'react';
+
+export function SearchAnalyticsPanel() {
+  const StatRow = ({ label, value, change, color }: { label: string, value: string, change: string, color: string }) => (
+    <div className="flex items-center justify-between text-xs py-1.5">
+      <span className="text-muted-foreground">{label}</span>
+      <div className="flex items-center space-x-4">
+        <span className="font-medium text-foreground">{value}</span>
+----------------------------------------
+File: components\search\SearchFiltersPanel.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { Calendar, ChevronRight } from 'lucide-react';
+
+export function SearchFiltersPanel() {
+  const [searchType, setSearchType] = useState('Hybrid Search');
+  const [fileType, setFileType] = useState('All Types');
+  const [source, setSource] = useState('All Sources');
+
+----------------------------------------
+File: components\search\SearchForm.tsx
+"use client";
+
+import React, { useState } from "react";
+import { useSearch } from "../../lib/hooks/useSearch";
+import { FilterBuilder } from "./FilterBuilder";
+import { ResultCard } from "./ResultCard";
+import { MetadataFilter } from "../../lib/types/models";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Spinner } from "../ui/spinner";
+----------------------------------------
+File: components\search\SearchInputArea.tsx
+"use client";
+
+import React from 'react';
+import { Search, X, BarChart } from 'lucide-react';
+
+export function SearchInputArea({ query, setQuery }: { query: string, setQuery: (q: string) => void }) {
+  const tabs = ["All Results", "Documents", "Code", "Web", "Knowledge Base"];
+
+  return (
+    <div className="flex flex-col w-full">
+----------------------------------------
+File: components\settings\DangerZone.tsx
+"use client";
+
+import React from 'react';
+import { AlertTriangle, Download, RefreshCw, Trash2 } from 'lucide-react';
+
+export function DangerZone() {
+  return (
+    <div className="bg-[#12181f] border border-red-500/20 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between p-6 gap-6 relative overflow-hidden">
+      
+      {/* Subtle red glow background */}
+----------------------------------------
+File: components\settings\SettingsGrid.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { Settings, Server, Database, BarChart2, ChevronDown, Moon, Sun, Monitor, ChevronsUpDown } from 'lucide-react';
+
+export function SettingsGrid() {
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+----------------------------------------
+File: components\settings\SettingsRightPanel.tsx
+"use client";
+
+import React from 'react';
+import { User, Shield, Key, Lock, MonitorSmartphone, Link as LinkIcon, Database, Check, ChevronRight, Clock, UserPlus, KeyRound, Edit3, Hexagon, DatabaseBackup, Settings } from 'lucide-react';
+
+export function SettingsRightPanel() {
+  
+  return (
+    <div className="flex-1 flex flex-col p-6 space-y-8">
+      
+----------------------------------------
+File: components\settings\SettingsTabs.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { Settings, Hexagon, Search, Users, Bell, Box, CreditCard } from 'lucide-react';
+
+export function SettingsTabs() {
+  const [activeTab, setActiveTab] = useState('General');
+
+  const tabs = [
+    { id: 'General', icon: Settings },
+----------------------------------------
+File: components\sources\SourcesPanel.tsx
+"use client";
+
+import React from 'react';
+import { Citation } from '../../lib/types/models';
+import { MoreVertical, ArrowRight } from 'lucide-react';
+
+export function SourcesPanel({ citations }: { citations: Citation[] }) {
+  if (!citations || citations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm p-4 text-center border-b border-[#30363d]">
+----------------------------------------
+File: components\tools\ToolListArea.tsx
+"use client";
+
+import React, { useState } from 'react';
+import { Search, ChevronDown, LayoutGrid, List, Play, Settings, MoreVertical, Database, Globe, FileText, Code, DatabaseBackup, FileSignature, Link, Mail } from 'lucide-react';
+
+export function ToolListArea() {
+  
+  const mockTools = [
+    { id: 1, name: "Vector Search", desc: "Search across vector database", cat: "Retrieval", active: true, usage: 1824, sr: 99.2, ago: "2 min ago", icon: Database },
+    { id: 2, name: "Web Search", desc: "Search real-time information from the web", cat: "Search", active: true, usage: 982, sr: 97.8, ago: "15 min ago", icon: Globe },
+----------------------------------------
+File: components\tools\ToolsRightPanel.tsx
+"use client";
+
+import React from 'react';
+import { Plus, Download, LayoutTemplate, Key, ChevronRight, ChevronDown, ArrowUp, ArrowDown, Database, Globe, Code, DatabaseBackup } from 'lucide-react';
+
+export function ToolsRightPanel() {
+  
+  return (
+    <div className="flex-1 flex flex-col p-6 space-y-8">
+      
+----------------------------------------
+File: components\tools\ToolsStatsRow.tsx
+"use client";
+
+import React from 'react';
+import { Wrench, Plug, Activity, Target, ArrowUp, ArrowDown } from 'lucide-react';
+
+export function ToolsStatsRow() {
+  const StatCard = ({ title, value, subtext, subtextColor, subtextIcon: SubIcon, icon: Icon, colorClass, iconBg }: any) => (
+    <div className="flex-1 bg-[#12181f] border border-[#1e2329] rounded-xl p-4 hover:border-[#30363d] transition-colors flex flex-col justify-between min-h-[100px]">
+      <div className="flex items-start justify-between">
+        <div className="flex flex-col space-y-1">
+----------------------------------------
+File: components\ui\badge.tsx
+import React from "react";
+import { cn } from "../../lib/utils";
+
+export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  tone?: "default" | "success" | "warning" | "destructive" | "neutral";
+}
+
+export function Badge({ className, tone = "default", ...props }: BadgeProps) {
+  const tones = {
+    default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+----------------------------------------
+File: components\ui\button.tsx
+import { Button as ButtonPrimitive } from "@base-ui/react/button"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  {
+    variants: {
+      variant: {
+----------------------------------------
+File: components\ui\card.tsx
+import React from "react";
+import { cn } from "../../lib/utils";
+
+export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn("rounded-xl border bg-card text-card-foreground shadow", className)}
+      {...props}
+    />
+----------------------------------------
+File: components\ui\input.tsx
+import * as React from "react"
+import { Input as InputPrimitive } from "@base-ui/react/input"
+
+import { cn } from "@/lib/utils"
+
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+  return (
+    <InputPrimitive
+      type={type}
+      data-slot="input"
+----------------------------------------
+File: components\ui\spinner.tsx
+import React from "react";
+import { cn } from "../../lib/utils";
+
+export interface SpinnerProps extends React.SVGProps<SVGSVGElement> {
+  size?: "sm" | "md" | "lg";
+}
+
+export function Spinner({ className, size = "md", ...props }: SpinnerProps) {
+  const sizes = {
+    sm: "h-4 w-4",
+----------------------------------------
+File: components\ui\textarea.tsx
+import React from "react";
+import { cn } from "../../lib/utils";
+
+export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ className, ...props }, ref) => {
+    return (
+      <textarea
+        className={cn(
+----------------------------------------
+File: lib\utils.ts
+----------------------------------------
+File: lib\api\analytics.ts
+import { apiFetch } from "./client";
+
+export interface AnalyticsOverview {
+  totalQueries: number;
+  averageLatencyMs: number;
+  cacheHitRate: number;
+  activeUsers: number;
+}
+
+export const analyticsApi = {
+----------------------------------------
+File: lib\api\auth.ts
+import { apiFetch } from "./client";
+import { 
+  SignupRequest, 
+  LoginRequest, 
+  InviteRequest, 
+  AcceptInviteRequest, 
+  RefreshRequest, 
+  AuthResponse, 
+  InviteResponse,
+  SignupResponse,
+----------------------------------------
+File: lib\api\client.ts
+import { ErrorDetail, ErrorResponse } from "../types/models";
+import { getAuthToken, clearAuthToken } from "../auth/session";
+
+export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+
+export class ApiError extends Error {
+  statusCode: number;
+  errors: ErrorDetail[];
+
+  constructor(statusCode: number, errors: ErrorDetail[], message?: string) {
+----------------------------------------
+File: lib\api\conversations.ts
+import { apiFetch } from "./client";
+import { ConversationRow, ConversationMessageRow } from "../types/backend";
+
+export const conversationsApi = {
+  listConversations: async (): Promise<ConversationRow[]> => {
+    return apiFetch<ConversationRow[]>("/api/v1/conversations", { method: "GET" });
+  },
+
+  getConversationHistory: async (sessionId: string): Promise<ConversationMessageRow[]> => {
+    return apiFetch<ConversationMessageRow[]>(`/api/v1/conversations/${sessionId}/history`, { method: "GET" });
+----------------------------------------
+File: lib\api\documents.ts
+import { apiFetch } from "./client";
+import { DocumentRow, DocumentCreate } from "../types/backend";
+
+export const documentsApi = {
+  listDocuments: async (): Promise<DocumentRow[]> => {
+    const res = await apiFetch<any>("/api/v1/documents", { method: "GET" });
+    return res.items || [];
+  },
+
+  getDocument: async (id: string): Promise<DocumentRow> => {
+----------------------------------------
+File: lib\api\health.ts
+import { HealthResponse } from "../types/models";
+import { apiFetch } from "./client";
+
+// NOTE: These endpoints must hit the root paths (/health, /ready, /live) 
+// and NOT /api/health per the backend contract.
+export async function getHealth(): Promise<HealthResponse> {
+  return apiFetch<HealthResponse>("/health");
+}
+
+export async function getReady(): Promise<HealthResponse> {
+----------------------------------------
+File: lib\api\ingest.ts
+import { apiFetch, apiBaseUrl } from "./client";
+
+export interface IngestionJob {
+  id: string;
+  source_path_or_url: string;
+  source_type?: string;
+  status: string;
+  progress_percent: number;
+  chunks_total: number;
+  chunks_indexed: number;
+----------------------------------------
+File: lib\api\notifications.ts
+import { apiFetch } from "./client";
+
+export interface NotificationRow {
+  id: string;
+  userId: string;
+  tenantId: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+----------------------------------------
+File: lib\api\query.ts
+import { ChatResponse, QueryRequest, StreamChunk } from "../types/models";
+import { apiBaseUrl, ApiError, apiFetch } from "./client";
+import { parseSseStream } from "../utils/sse";
+
+export async function postQuery(request: QueryRequest): Promise<ChatResponse> {
+  const req = { ...request, stream: false };
+  return apiFetch<ChatResponse>("/api/query", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+----------------------------------------
+File: lib\api\search.ts
+----------------------------------------
+File: lib\api\settings.ts
+import { apiFetch } from "./client";
+import { SystemSettings } from "../types/backend";
+
+export const settingsApi = {
+  getSettings: async (): Promise<SystemSettings> => {
+    return apiFetch<SystemSettings>("/api/v1/settings", { method: "GET" });
+  },
+
+  updateSettings: async (settings: Partial<SystemSettings>): Promise<SystemSettings> => {
+    return apiFetch<SystemSettings>("/api/v1/settings", { 
+----------------------------------------
+File: lib\api\tools.ts
+import { apiFetch } from "./client";
+import { ToolRow, ToolExecutionRow } from "../types/backend";
+
+export const toolsApi = {
+  listTools: async (): Promise<ToolRow[]> => {
+    return apiFetch<ToolRow[]>("/api/v1/tools", { method: "GET" });
+  },
+
+  getToolExecutions: async (toolId: string, limit: number = 50): Promise<ToolExecutionRow[]> => {
+    return apiFetch<ToolExecutionRow[]>(`/api/v1/tools/${toolId}/executions?limit=${limit}`, { method: "GET" });
+----------------------------------------
+File: lib\auth\session.ts
+/**
+ * auth/session.ts
+ * 
+ * Manages JWT session tokens. 
+ */
+
+const TOKEN_KEY = "rag_access_token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") {
+----------------------------------------
+File: lib\hooks\useChat.ts
+import { useState, useCallback, useRef } from "react";
+import { ChatMessage, Citation, StreamChunk, QueryRequest, StreamEventType } from "../types/models";
+import { streamQuery } from "../api/query";
+
+export function useChat() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [citations, setCitations] = useState<Citation[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [metadata, setMetadata] = useState<any>(null);
+----------------------------------------
+File: lib\hooks\useConversations.ts
+import { useState, useEffect, useCallback } from 'react';
+import { 
+  ConversationSummary, 
+  StoredConversation, 
+  listConversations, 
+  getConversation, 
+  saveConversation, 
+  deleteConversation 
+} from '../storage/conversationStore';
+import { ChatMessage, Citation } from '../types/models';
+----------------------------------------
+File: lib\hooks\useHealthPolling.ts
+import { useState, useEffect } from "react";
+import { HealthResponse, ComponentHealth, HealthStatus } from "../types/models";
+import { getReady } from "../api/health";
+
+export function useHealthPolling(initialIntervalMs: number = 10000) {
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+----------------------------------------
+File: lib\hooks\useSearch.ts
+import { useState, useCallback } from "react";
+import { SearchRequest, SearchResult } from "../types/models";
+import { postSearch } from "../api/search";
+
+export function useSearch() {
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [debugInfo, setDebugInfo] = useState<Record<string, any> | undefined>(undefined);
+  const [latencyMs, setLatencyMs] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+----------------------------------------
+File: lib\storage\conversationStore.ts
+import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { ChatMessage, Citation } from '../types/models';
+
+export interface StoredConversation {
+  sessionId: string;
+  title: string;
+  messages: ChatMessage[];
+  citations: Citation[];
+  updatedAt: number;
+}
+----------------------------------------
+File: lib\types\backend.ts
+export interface TokenResponse {
+  accessToken: string;
+  tokenType: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  role: string;
+  tenantId: string;
+----------------------------------------
+File: lib\types\models.ts
+export type QueryIntent = "simple_qa" | "complex_qa" | "code_search" | "web_search" | "hybrid_search";
+export type RelevanceGrade = "good" | "bad" | "need_web";
+export type RetrievalSource = "vector" | "bm25" | "web" | "code" | "cache";
+export type MessageRole = "system" | "user" | "assistant" | "tool";
+export type StreamEventType = "start" | "token" | "citation" | "tool_call" | "tool_result" | "error" | "end";
+export type HealthStatus = "healthy" | "degraded" | "unhealthy";
+
+export interface MetadataFilter {
+  field: string;
+  value: any;
+----------------------------------------
+File: lib\utils\sse.ts
+import { StreamChunk } from "../types/models";
+
+export async function parseSseStream(
+  response: Response,
+  onChunk: (chunk: StreamChunk) => void
+): Promise<void> {
+  if (!response.body) {
+    throw new Error("No response body available for streaming.");
+  }
+
+----------------------------------------

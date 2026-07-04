@@ -118,6 +118,7 @@ class PdfExtractor(BaseExtractor):
         self, file_path: Path
     ) -> tuple[List[str], DocumentMetadata, List[str]]:
         try:
+            # pyrefly: ignore [missing-import]
             import pypdf  # noqa: PLC0415
         except ImportError as exc:
             raise ImportError(
@@ -152,6 +153,7 @@ class PdfExtractor(BaseExtractor):
         self, file_path: Path, num_pages: int
     ) -> List[List[List[str]]]:
         try:
+            # pyrefly: ignore [missing-import]
             import pdfplumber  # noqa: PLC0415
         except ImportError as exc:
             raise ImportError(
@@ -189,7 +191,9 @@ class PdfExtractor(BaseExtractor):
             return page_texts, []
 
         try:
+            # pyrefly: ignore [missing-import]
             from pdf2image import convert_from_path  # noqa: PLC0415
+            # pyrefly: ignore [missing-import]
             import pytesseract  # noqa: PLC0415
         except ImportError:
             msg = (

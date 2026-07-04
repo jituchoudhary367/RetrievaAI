@@ -59,7 +59,7 @@ class WebSearchTool:
     # Public API
     # ------------------------------------------------------------------
 
-    def search(self, query: str, top_k: int = 5, tenant_id: Optional[str] = None) -> List[Dict]:
+    def search(self, query: str, top_k: int = 5) -> List[Dict]:
         """
         Search the web for *query* and return up to *top_k* results.
 
@@ -79,10 +79,8 @@ class WebSearchTool:
         tool_id = "00000000-0000-0000-0001-000000000002"
 
         def _log(status: str, error: Optional[str] = None):
-            if tenant_id:
-                latency_ms = (time.perf_counter() - start_time) * 1000
-                asyncio.create_task(log_tool_execution(
-                    tenant_id=tenant_id,
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            asyncio.create_task(log_tool_execution(
                     tool_id=tool_id,
                     status=status,
                     latency_ms=latency_ms,

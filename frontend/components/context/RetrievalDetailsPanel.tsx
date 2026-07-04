@@ -10,6 +10,8 @@ export function RetrievalDetailsPanel({
   metadata?: ResponseMetadata; 
   filters?: MetadataFilter[]; 
 }) {
+  const hasResponse = metadata !== null && metadata !== undefined;
+
   return (
     <div className="flex flex-col space-y-3 p-4 border-b border-[#30363d]">
       <h3 className="text-sm font-semibold text-foreground mb-2">Retrieval Details</h3>
@@ -22,17 +24,27 @@ export function RetrievalDetailsPanel({
 
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">Total Retrieved</span>
-          <span className="text-foreground">32 documents</span>
+          <span className="text-foreground">
+            {hasResponse && metadata?.retrievedCount !== undefined
+              ? `${metadata.retrievedCount} documents`
+              : '--'}
+          </span>
         </div>
 
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">Reranked</span>
-          <span className="text-foreground">10 documents</span>
+          <span className="text-foreground">
+            {hasResponse && metadata?.rerankedCount !== undefined
+              ? `${metadata.rerankedCount} documents`
+              : '--'}
+          </span>
         </div>
 
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">Top K</span>
-          <span className="text-foreground">5</span>
+          <span className="text-foreground">
+            {hasResponse && metadata?.topK !== undefined ? metadata.topK : '--'}
+          </span>
         </div>
 
         <div className="flex flex-col text-xs">
@@ -55,7 +67,9 @@ export function RetrievalDetailsPanel({
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">Time Taken</span>
           <span className="text-foreground">
-            {metadata?.totalLatencyMs !== undefined ? `${metadata.totalLatencyMs} ms` : '--'}
+            {hasResponse && metadata?.totalLatencyMs !== undefined
+              ? `${metadata.totalLatencyMs} ms`
+              : '--'}
           </span>
         </div>
       </div>

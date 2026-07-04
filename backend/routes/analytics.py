@@ -40,30 +40,28 @@ class OverviewStats(BaseModel):
 @router.get("/overview", response_model=OverviewStats)
 async def get_overview(
     days: int = Query(default=30, ge=1, le=365),
-    current_user: User = Depends(require_role("TENANT_ADMIN")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> OverviewStats:
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    tenant_id = current_user.tenant_id
-
     # Total queries
     q_count = await db.execute(
         select(func.count()).select_from(QueryEvent)
-        .where(QueryEvent.tenant_id == tenant_id, QueryEvent.created_at >= cutoff)
+        .where(QueryEvent.created_at >= cutoff, QueryEvent.user_id == current_user.id)
     )
     total_queries = q_count.scalar_one()
 
     # Active users
     u_count = await db.execute(
         select(func.count(func.distinct(QueryEvent.user_id)))
-        .where(QueryEvent.tenant_id == tenant_id, QueryEvent.created_at >= cutoff)
+        .where(QueryEvent.created_at >= cutoff, QueryEvent.user_id == current_user.id)
     )
     active_users = u_count.scalar_one()
 
     # Avg latency
     lat_avg = await db.execute(
         select(func.avg(QueryEvent.total_latency_ms))
-        .where(QueryEvent.tenant_id == tenant_id, QueryEvent.created_at >= cutoff)
+        .where(QueryEvent.created_at >= cutoff, QueryEvent.user_id == current_user.id)
     )
     avg_lat = lat_avg.scalar_one() or 0.0
 
@@ -71,7 +69,7 @@ async def get_overview(
     doc_stats = await db.execute(
         select(func.count(), func.sum(Document.chunk_count))
         .select_from(Document)
-        .where(Document.tenant_id == tenant_id)
+        .where(Document.user_id == current_user.id)
     )
     docs_idx, chunks_tot = doc_stats.one()
 
@@ -86,7 +84,7 @@ async def get_overview(
 @router.get("/query-distribution")
 async def get_query_distribution(
     days: int = Query(default=30),
-    current_user: User = Depends(require_role("TENANT_ADMIN")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[Dict[str, Any]]:
     # Daily query counts
@@ -96,7 +94,7 @@ async def get_query_distribution(
             func.date_trunc('day', QueryEvent.created_at).label("day"),
             func.count().label("count")
         )
-        .where(QueryEvent.tenant_id == current_user.tenant_id, QueryEvent.created_at >= cutoff)
+        .where(QueryEvent.created_at >= cutoff, QueryEvent.user_id == current_user.id)
         .group_by(text("day"))
         .order_by(text("day"))
     )
@@ -106,13 +104,13 @@ async def get_query_distribution(
 @router.get("/top-queries")
 async def get_top_queries(
     limit: int = Query(default=10),
-    current_user: User = Depends(require_role("TENANT_ADMIN")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[Dict[str, Any]]:
     # Simply latest queries for now, could aggregate by similar text
     result = await db.execute(
         select(QueryEvent.query_text, QueryEvent.created_at, QueryEvent.intent)
-        .where(QueryEvent.tenant_id == current_user.tenant_id)
+        .where(QueryEvent.user_id == current_user.id)
         .order_by(QueryEvent.created_at.desc())
         .limit(limit)
     )
@@ -120,10 +118,10 @@ async def get_top_queries(
 
 @router.get("/retrieval-quality")
 async def get_retrieval_quality(
-    current_user: User = Depends(require_role("TENANT_ADMIN")),
+    current_user: User = Depends(require_role("TENANT_ADMIN", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
-    run = await get_latest_eval_run(db, current_user.tenant_id)
+    run = await get_latest_eval_run(db)
     if not run or not run.metrics:
         return {"status": "no_data"}
     
@@ -138,12 +136,11 @@ async def get_retrieval_quality(
 @router.get("/system-health")
 async def get_system_health(
     limit: int = Query(default=60), # Last 60 samples (e.g. 1 hour if 1 min interval)
-    current_user: User = Depends(require_role("TENANT_ADMIN")),
+    current_user: User = Depends(require_role("TENANT_ADMIN", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> List[Dict[str, Any]]:
     result = await db.execute(
         select(HealthSample)
-        .where(HealthSample.tenant_id == current_user.tenant_id)
         .order_by(HealthSample.sampled_at.desc())
         .limit(limit)
     )

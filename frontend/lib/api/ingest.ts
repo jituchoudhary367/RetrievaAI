@@ -1,44 +1,75 @@
-import { apiBaseUrl } from "./client";
+import { apiFetch, apiBaseUrl } from "./client";
+import { getAuthToken } from "../auth/session";
 
-export interface FileIngestResult {
-  path: string;
+export interface IngestionJob {
+  id: string;
+  source_path_or_url: string;
+  source_type?: string;
   status: string;
-  num_chunks: number;
-  error?: string;
-  warnings: string[];
+  progress_percent: number;
+  chunks_total: number;
+  chunks_indexed: number;
+  error_message?: string;
+  submitted_by?: string;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
 }
 
-export interface IngestionReport {
-  total_files: number;
-  indexed: number;
-  skipped: number;
-  failed: number;
-  results: FileIngestResult[];
-  elapsed_seconds: number;
-}
+export const ingestionApi = {
+  listJobs: async (status?: string, limit: number = 20): Promise<{ items: IngestionJob[], total: number }> => {
+    let url = `/api/ingestion/jobs?limit=${limit}`;
+    if (status) url += `&status=${status}`;
+    return apiFetch<any>(url, { method: "GET" });
+  },
 
-export async function uploadAndIngest(file: File): Promise<IngestionReport> {
-  const formData = new FormData();
-  formData.append("file", file);
+  getJob: async (id: string): Promise<IngestionJob> => {
+    return apiFetch<IngestionJob>(`/api/ingestion/jobs/${id}`, { method: "GET" });
+  },
 
-  const response = await fetch(`${apiBaseUrl}/api/v1/ingest/upload`, {
-    method: "POST",
-    // Do not set Content-Type header. Let the browser set it to multipart/form-data with the boundary.
-    body: formData,
-  });
+  getJobChunks: async (id: string): Promise<any[]> => {
+    return apiFetch<any[]>(`/api/ingestion/jobs/${id}/chunks`, { method: "GET" });
+  },
 
-  if (!response.ok) {
-    let errorMessage = "Failed to upload file";
-    try {
-      const errorData = await response.json();
-      if (errorData.detail) {
-        errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
-      }
-    } catch (e) {
-      // Ignore JSON parse error if response is not JSON
+  getJobMetadata: async (id: string): Promise<any> => {
+    return apiFetch<any>(`/api/ingestion/jobs/${id}/metadata`, { method: "GET" });
+  },
+
+  submitJob: async (file: File, chunkSize?: number, chunkOverlap?: number): Promise<{ job_id: string, message: string }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (chunkSize) formData.append("chunk_size", chunkSize.toString());
+    if (chunkOverlap) formData.append("chunk_overlap", chunkOverlap.toString());
+
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
     }
-    throw new Error(errorMessage);
-  }
 
-  return response.json();
-}
+    const response = await fetch(`${apiBaseUrl}/api/ingestion/jobs`, {
+      method: "POST",
+      body: formData,
+      headers,
+    });
+
+    if (!response.ok) {
+      let errorMessage = "Failed to submit job";
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorMessage;
+      } catch (e) {}
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
+  cancelJob: async (id: string): Promise<any> => {
+    return apiFetch<any>(`/api/ingestion/jobs/${id}/cancel`, { method: "POST" });
+  },
+
+  deleteJob: async (id: string): Promise<void> => {
+    return apiFetch<void>(`/api/ingestion/jobs/${id}`, { method: "DELETE" });
+  }
+};

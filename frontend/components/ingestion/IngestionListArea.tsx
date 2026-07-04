@@ -5,6 +5,7 @@ import { Search, Filter, Eye, MoreVertical, FileText, CheckCircle2, Clock, XCirc
 
 export function IngestionListArea({ jobs, selectedJobId, onSelectJob }: any) {
   const [activeTab, setActiveTab] = useState('All Ingestions');
+  const [searchQuery, setSearchQuery] = useState('');
   const tabs = ['All Ingestions', 'Processing', 'Completed', 'Failed', 'Scheduled'];
 
   const getIcon = (type: string) => {
@@ -19,29 +20,63 @@ export function IngestionListArea({ jobs, selectedJobId, onSelectJob }: any) {
     }
   };
 
+  // Backend returns lowercase statuses: completed, processing, queued, failed
   const getStatusDisplay = (status: string) => {
-    switch (status) {
-      case 'Completed': return <div className="flex items-center space-x-1.5 text-[#10b981]"><CheckCircle2 className="w-3.5 h-3.5" /><span>Completed</span></div>;
-      case 'Processing': return <div className="flex items-center space-x-1.5 text-[#3b82f6]"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Processing</span></div>;
-      case 'Queued': return <div className="flex items-center space-x-1.5 text-yellow-500"><Clock className="w-3.5 h-3.5" /><span>Queued</span></div>;
-      case 'Failed': return <div className="flex items-center space-x-1.5 text-red-500"><XCircle className="w-3.5 h-3.5" /><span>Failed</span></div>;
-      default: return <span>{status}</span>;
+    const s = (status || '').toLowerCase();
+    switch (s) {
+      case 'completed': return <div className="flex items-center space-x-1.5 text-[#10b981]"><CheckCircle2 className="w-3.5 h-3.5" /><span>Completed</span></div>;
+      case 'processing': return <div className="flex items-center space-x-1.5 text-[#3b82f6]"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Processing</span></div>;
+      case 'queued': return <div className="flex items-center space-x-1.5 text-yellow-500"><Clock className="w-3.5 h-3.5" /><span>Queued</span></div>;
+      case 'failed': return <div className="flex items-center space-x-1.5 text-red-500"><XCircle className="w-3.5 h-3.5" /><span>Failed</span></div>;
+      case 'cancelled': return <div className="flex items-center space-x-1.5 text-zinc-400"><XCircle className="w-3.5 h-3.5" /><span>Cancelled</span></div>;
+      default: return <span className="capitalize">{status}</span>;
     }
   };
 
   const getProgressBar = (progress: number, status: string) => {
+    const s = (status || '').toLowerCase();
     let color = 'bg-[#10b981]';
-    if (status === 'Processing') color = 'bg-[#3b82f6]';
-    if (status === 'Failed') color = 'bg-red-500';
+    if (s === 'processing') color = 'bg-[#3b82f6]';
+    if (s === 'failed') color = 'bg-red-500';
 
     return (
       <div className="flex items-center space-x-3 w-full">
         <div className="flex-1 h-1.5 bg-[#1e2329] rounded-full overflow-hidden">
-          <div className={`h-full rounded-full ${color}`} style={{ width: `${progress}%` }} />
+          <div className={`h-full rounded-full ${color}`} style={{ width: `${progress ?? 0}%` }} />
         </div>
-        <span className="text-[10px] text-muted-foreground w-6">{progress}%</span>
+        <span className="text-[10px] text-muted-foreground w-6">{progress ?? 0}%</span>
       </div>
     );
+  };
+
+  // Filter jobs based on active tab (real-time filtering)
+  const filteredJobs = (jobs || []).filter((job: any) => {
+    const statusLower = (job.status || '').toLowerCase();
+    const tabMatch = (() => {
+      switch (activeTab) {
+        case 'All Ingestions': return true;
+        case 'Processing': return statusLower === 'processing' || statusLower === 'queued';
+        case 'Completed': return statusLower === 'completed';
+        case 'Failed': return statusLower === 'failed' || statusLower === 'cancelled';
+        case 'Scheduled': return statusLower === 'scheduled';
+        default: return true;
+      }
+    })();
+
+    const searchMatch = !searchQuery || 
+      (job.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (job.source || '').toLowerCase().includes(searchQuery.toLowerCase());
+
+    return tabMatch && searchMatch;
+  });
+
+  // Count per tab for badges
+  const counts: Record<string, number> = {
+    'All Ingestions': (jobs || []).length,
+    'Processing': (jobs || []).filter((j: any) => ['processing', 'queued'].includes((j.status || '').toLowerCase())).length,
+    'Completed': (jobs || []).filter((j: any) => (j.status || '').toLowerCase() === 'completed').length,
+    'Failed': (jobs || []).filter((j: any) => ['failed', 'cancelled'].includes((j.status || '').toLowerCase())).length,
+    'Scheduled': (jobs || []).filter((j: any) => (j.status || '').toLowerCase() === 'scheduled').length,
   };
 
   return (
@@ -56,13 +91,20 @@ export function IngestionListArea({ jobs, selectedJobId, onSelectJob }: any) {
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-4 -mb-[17px] text-xs font-semibold transition-colors border-b-2 ${
+              className={`pb-4 -mb-[17px] text-xs font-semibold transition-colors border-b-2 flex items-center gap-1.5 ${
                 activeTab === tab 
                   ? 'border-[#10b981] text-[#10b981]' 
                   : 'border-transparent text-muted-foreground hover:text-foreground hover:border-[#4b5563]'
               }`}
             >
               {tab}
+              {counts[tab] > 0 && (
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                  activeTab === tab ? 'bg-[#10b981]/20 text-[#10b981]' : 'bg-[#1e2329] text-muted-foreground'
+                }`}>
+                  {counts[tab]}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -75,13 +117,10 @@ export function IngestionListArea({ jobs, selectedJobId, onSelectJob }: any) {
               type="text" 
               className="flex-1 bg-transparent border-none outline-none text-foreground text-xs placeholder-muted-foreground"
               placeholder="Search by name or source..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button className="flex items-center space-x-1 px-3 py-1.5 border border-[#30363d] rounded-md text-xs text-muted-foreground hover:text-foreground transition-colors">
-            <Filter className="h-3.5 w-3.5" />
-            <span>Filter</span>
-            <span className="text-[10px] ml-1">⌄</span>
-          </button>
         </div>
       </div>
 
@@ -101,66 +140,57 @@ export function IngestionListArea({ jobs, selectedJobId, onSelectJob }: any) {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1e2329]">
-            {jobs.map((job: any) => (
-              <tr 
-                key={job.id} 
-                onClick={() => onSelectJob(job.id)}
-                className={`group transition-colors cursor-pointer ${
-                  selectedJobId === job.id ? 'bg-[#161b22]' : 'hover:bg-[#12181f]'
-                }`}
-              >
-                <td className="px-4 py-3 min-w-[280px]">
-                  <div className="flex items-start space-x-3">
-                    <div className="mt-0.5">{getIcon(job.type)}</div>
-                    <div className="flex flex-col space-y-0.5">
-                      <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
-                        {job.title}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {job.subtitle}
-                      </span>
-                    </div>
-                  </div>
-                </td>
-                
-                <td className="px-4 py-3 font-mono text-[9px] whitespace-nowrap text-muted-foreground/80">{job.source}</td>
-                <td className="px-4 py-3 whitespace-nowrap">{getStatusDisplay(job.status)}</td>
-                <td className="px-4 py-3">{getProgressBar(job.progress, job.status)}</td>
-                <td className="px-4 py-3 whitespace-nowrap">{job.chunks}</td>
-                <td className="px-4 py-3 whitespace-nowrap">{job.indexed}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-[10px]">{job.started}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="View details">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                    <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
-                      <MoreVertical className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+            {filteredJobs.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground text-xs">
+                  {searchQuery ? `No jobs match "${searchQuery}"` : `No ${activeTab === 'All Ingestions' ? '' : activeTab.toLowerCase() + ' '}jobs found`}
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredJobs.map((job: any) => (
+                <tr 
+                  key={job.id} 
+                  onClick={() => onSelectJob(job.id)}
+                  className={`group transition-colors cursor-pointer ${
+                    selectedJobId === job.id ? 'bg-[#161b22]' : 'hover:bg-[#12181f]'
+                  }`}
+                >
+                  <td className="px-4 py-3 min-w-[280px]">
+                    <div className="flex items-start space-x-3">
+                      <div className="mt-0.5">{getIcon(job.type)}</div>
+                      <div className="flex flex-col space-y-0.5">
+                        <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {job.title}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {job.subtitle}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  
+                  <td className="px-4 py-3 font-mono text-[9px] whitespace-nowrap text-muted-foreground/80">{job.source}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{getStatusDisplay(job.status)}</td>
+                  <td className="px-4 py-3">{getProgressBar(job.progress, job.status)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{job.chunks ?? 0}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{job.indexed ?? 0}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-[10px]">{job.started}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="View details">
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                      <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
-
-      {/* Pagination Footer */}
-      <div className="flex items-center justify-between mt-6 px-4">
-        <div className="flex items-center space-x-1 border border-[#30363d] rounded p-0.5">
-          <button className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:bg-[#30363d] transition-colors text-[10px] font-medium">&lt;</button>
-          <button className="w-6 h-6 rounded flex items-center justify-center bg-[#10b981] text-background text-[10px] font-medium">1</button>
-          <button className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:bg-[#30363d] transition-colors text-[10px] font-medium">2</button>
-          <button className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:bg-[#30363d] transition-colors text-[10px] font-medium">3</button>
-          <button className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:bg-[#30363d] transition-colors text-[10px] font-medium">4</button>
-          <button className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:bg-[#30363d] transition-colors text-[10px] font-medium">5</button>
-          <span className="px-1 text-muted-foreground text-[10px]">...</span>
-          <button className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:bg-[#30363d] transition-colors text-[10px] font-medium">25</button>
-          <button className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:bg-[#30363d] transition-colors text-[10px] font-medium">&gt;</button>
-        </div>
-        <span className="text-[10px] text-muted-foreground">Showing 1 to 6 of 148 ingestions</span>
-      </div>
-
     </div>
   );
 }

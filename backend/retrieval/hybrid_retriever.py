@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, List, Optional, Tuple
 
-from pipeline.indexer import QdrantIndexer, BM25IndexPool
+from pipeline.indexer import QdrantIndexer, BM25Index
 from pipeline.embedder import Embedder
 from retrieval.filters import build_qdrant_filter
 from app.config import RetrievalSettings, get_settings
@@ -56,7 +56,15 @@ class HybridRetriever:
         self._cfg: RetrievalSettings = settings or cfg.retrieval
         self._embedder = embedder or Embedder()
         self._qdrant = qdrant_indexer or QdrantIndexer()
-        self._bm25_pool = BM25IndexPool()
+        # _bm25_index is loaded dynamically per user in retrieve()
+        self._bm25_pool: Dict[str, BM25Index] = {}
+
+    def _get_bm25(self, user_id: str) -> BM25Index:
+        if user_id not in self._bm25_pool:
+            base_path = get_settings().qdrant.bm25_index_path
+            user_path = base_path / f"{user_id}.pkl"
+            self._bm25_pool[user_id] = BM25Index.load(user_path)
+        return self._bm25_pool[user_id]
 
     # ------------------------------------------------------------------
     # Public API
@@ -64,8 +72,8 @@ class HybridRetriever:
 
     def retrieve(
         self,
-        tenant_id: str,
         query: str,
+        user_id: str,
         top_k: Optional[int] = None,
         filters: Optional[List[MetadataFilter]] = None,
         retrieval_mode: str = "hybrid",
@@ -99,7 +107,11 @@ class HybridRetriever:
                 logger.error("Failed to embed query: %s", exc)
 
         # 2. Dense search
-        qdrant_filter = build_qdrant_filter(tenant_id, filters or [])
+        user_filter = MetadataFilter(key="user_id", value=user_id, match_type="exact")
+        merged_filters = [user_filter]
+        if filters:
+            merged_filters.extend(filters)
+        qdrant_filter = build_qdrant_filter(merged_filters)
         dense_hits: List[Tuple[str, float]] = []
         scored_points = []
         if query_vector is not None:
@@ -115,12 +127,10 @@ class HybridRetriever:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Qdrant dense search failed: %s", exc)
 
-        # 3. Sparse search (BM25)
-        sparse_hits: List[Tuple[str, float]] = []
         if retrieval_mode in ("hybrid", "keyword"):
             try:
-                bm25_index = self._bm25_pool.get(tenant_id)
-                sparse_hits = bm25_index.search(query, top_k=self._cfg.top_k_sparse)
+                bm25 = self._get_bm25(user_id)
+                sparse_hits = bm25.search(query, top_k=self._cfg.top_k_sparse)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("BM25 sparse search failed: %s", exc)
 
@@ -142,7 +152,6 @@ class HybridRetriever:
             results.append(
                 RetrievedChunk(
                     chunk_id=chunk_id,
-                    tenant_id=tenant_id,
                     document_id=payload.get("document_id", ""),
                     text=payload.get("text", ""),
                     source=RetrievalSource.VECTOR

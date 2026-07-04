@@ -16,7 +16,7 @@ export function ConversationContextPanel({
   onClear: () => void;
 }) {
   const tokenUsage = metadata?.tokenUsage?.totalTokens || 0;
-  const maxTokens = 16384;
+  const maxTokens = parseInt(process.env.NEXT_PUBLIC_MAX_CONTEXT_TOKENS || "16384", 10);
   const percentage = Math.min((tokenUsage / maxTokens) * 100, 100);
 
   return (

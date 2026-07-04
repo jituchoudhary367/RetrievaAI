@@ -1,11 +1,65 @@
-"use client";
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, FileText, Download, Trash2, Box } from 'lucide-react';
+import { ingestionApi } from '../../lib/api/ingest';
+import { apiBaseUrl } from '../../lib/api/client';
 
 export function IngestionDetailPanel({ job, onClose }: any) {
   const [activeTab, setActiveTab] = useState('Overview');
   const tabs = ['Overview', 'Chunks', 'Metadata', 'Logs'];
+
+  const [chunks, setChunks] = useState<any[]>([]);
+  const [metadata, setMetadata] = useState<any>(null);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loadingChunks, setLoadingChunks] = useState(false);
+  const [loadingMetadata, setLoadingMetadata] = useState(false);
+
+  useEffect(() => {
+    // Reset state when job changes
+    setChunks([]);
+    setMetadata(null);
+    setLogs([]);
+    setActiveTab('Overview');
+  }, [job?.id]);
+
+  useEffect(() => {
+    if (!job?.id) return;
+    
+    if (activeTab === 'Chunks' && chunks.length === 0) {
+      setLoadingChunks(true);
+      ingestionApi.getJobChunks(job.id)
+        .then(setChunks)
+        .catch(console.error)
+        .finally(() => setLoadingChunks(false));
+    }
+    
+    if (activeTab === 'Metadata' && !metadata) {
+      setLoadingMetadata(true);
+      ingestionApi.getJobMetadata(job.id)
+        .then(setMetadata)
+        .catch(console.error)
+        .finally(() => setLoadingMetadata(false));
+    }
+
+    if (activeTab === 'Logs') {
+      const eventSource = new EventSource(`${apiBaseUrl}/api/ingestion/jobs/${job.id}/stream`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          if (event.data === "ping") return;
+          const parsed = JSON.parse(event.data);
+          setLogs(prev => [...prev, parsed]);
+        } catch (e) {}
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+      };
+
+      return () => {
+        eventSource.close();
+      };
+    }
+  }, [activeTab, job?.id]);
 
   const getBigIcon = (type: string) => {
     switch (type) {
@@ -24,7 +78,7 @@ export function IngestionDetailPanel({ job, onClose }: any) {
       {/* Header */}
       <div className="flex items-center justify-between p-6 pb-2">
         <h2 className="text-xs font-semibold text-foreground truncate pr-4">{job.title}</h2>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
+        <button onClick={() => onClose()} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -48,97 +102,118 @@ export function IngestionDetailPanel({ job, onClose }: any) {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-24 scrollbar-thin">
         
-        {/* Hero Card */}
-        <div className="flex items-start space-x-3">
-          {getBigIcon(job.type)}
-          <div className="flex flex-col space-y-1 overflow-hidden mt-0.5">
-            <span className="text-xs font-semibold text-foreground truncate">{job.title}</span>
-            <span className="text-[9px] font-mono text-muted-foreground truncate">{job.source}</span>
-            <span className="text-[9px] text-muted-foreground">Uploaded: {job.started}</span>
-            <span className="text-[9px] text-muted-foreground">Uploaded by: {job.uploader || 'Admin User'}</span>
-          </div>
-        </div>
+        {activeTab === 'Overview' && (
+          <>
+            {/* Hero Card */}
+            <div className="flex items-start space-x-3">
+              {getBigIcon(job.type)}
+              <div className="flex flex-col space-y-1 overflow-hidden mt-0.5">
+                <span className="text-xs font-semibold text-foreground truncate">{job.title}</span>
+                <span className="text-[9px] font-mono text-muted-foreground truncate">{job.source}</span>
+                <span className="text-[9px] text-muted-foreground">Uploaded: {job.started}</span>
+                <span className="text-[9px] text-muted-foreground">Uploaded by: {job.uploader || 'Admin User'}</span>
+              </div>
+            </div>
 
-        {/* Details List */}
-        <div className="flex flex-col space-y-3">
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">Status</span>
-            <span className="text-[10px] font-medium text-[#10b981]">{job.status}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">File Size</span>
-            <span className="text-[10px] text-foreground">{job.subtitle.split('•')[0].trim()}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">Pages</span>
-            <span className="text-[10px] text-foreground">{job.subtitle.split('•')[1]?.trim().split(' ')[0] || '-'}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">Chunks</span>
-            <span className="text-[10px] text-foreground">{job.chunks}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">Indexed</span>
-            <span className="text-[10px] text-foreground">{job.indexed} / {job.chunks}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">Processing Time</span>
-            <span className="text-[10px] text-foreground">{job.processingTime || 'N/A'}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">Embedding Model</span>
-            <span className="text-[10px] text-foreground">{job.model || 'N/A'}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">Parser</span>
-            <span className="text-[10px] text-foreground">{job.parser || 'N/A'}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
-            <span className="text-[10px] text-muted-foreground">Chunk Size</span>
-            <span className="text-[10px] text-foreground">{job.chunkSize || 'N/A'}</span>
-          </div>
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-[10px] text-muted-foreground">Chunk Overlap</span>
-            <span className="text-[10px] text-foreground">{job.chunkOverlap || 'N/A'}</span>
-          </div>
-        </div>
+            {/* Details List */}
+            <div className="flex flex-col space-y-3">
+              <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                <span className="text-[10px] text-muted-foreground">Status</span>
+                <span className="text-[10px] font-medium text-[#10b981]">{job.status}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                <span className="text-[10px] text-muted-foreground">File Size</span>
+                <span className="text-[10px] text-foreground">{job.subtitle?.includes('•') ? job.subtitle.split('•')[0].trim() : 'N/A'}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                <span className="text-[10px] text-muted-foreground">Pages</span>
+                <span className="text-[10px] text-foreground">{job.subtitle?.includes('•') ? (job.subtitle.split('•')[1]?.trim().split(' ')[0] || '-') : '-'}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                <span className="text-[10px] text-muted-foreground">Chunks</span>
+                <span className="text-[10px] text-foreground">{job.chunks}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                <span className="text-[10px] text-muted-foreground">Indexed</span>
+                <span className="text-[10px] text-foreground">{job.indexed} / {job.chunks}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-[#1e2329] pb-2">
+                <span className="text-[10px] text-muted-foreground">Processing Time</span>
+                <span className="text-[10px] text-foreground">{job.durationMs ? `${(job.durationMs / 1000).toFixed(1)}s` : 'N/A'}</span>
+              </div>
+            </div>
+          </>
+        )}
 
-        {/* Preview */}
-        <div className="flex flex-col space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-foreground">Preview</span>
-            <span className="text-[9px] text-muted-foreground">Page 1 of {job.subtitle.split('•')[1]?.trim().split(' ')[0] || '1'}</span>
+        {activeTab === 'Chunks' && (
+          <div className="flex flex-col space-y-4">
+            {loadingChunks ? (
+              <div className="text-xs text-muted-foreground text-center py-8">Loading chunks...</div>
+            ) : chunks.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-8">No chunks available.</div>
+            ) : (
+              chunks.map((chunk, i) => (
+                <div key={i} className="bg-[#12181f] border border-[#1e2329] rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground font-mono">Chunk {chunk.chunk_index || i+1}</span>
+                    <span className="text-[9px] text-muted-foreground">{chunk.text.length} chars</span>
+                  </div>
+                  <p className="text-xs text-foreground line-clamp-3">{chunk.text}</p>
+                </div>
+              ))
+            )}
           </div>
-          <div className="w-full h-32 bg-[#12181f] border border-[#1e2329] rounded-lg flex items-center justify-center p-2">
-            {/* SVG Flowchart Mock */}
-            <svg viewBox="0 0 200 100" className="w-full h-full opacity-60">
-              <rect x="20" y="40" width="30" height="20" rx="4" fill="none" stroke="#30363d" strokeWidth="1" />
-              <rect x="85" y="20" width="30" height="60" rx="4" fill="none" stroke="#30363d" strokeWidth="1" />
-              <rect x="150" y="40" width="30" height="20" rx="4" fill="none" stroke="#30363d" strokeWidth="1" />
-              
-              <path d="M 50 50 L 85 50" fill="none" stroke="#10b981" strokeWidth="1" markerEnd="url(#arrow)" />
-              <path d="M 115 50 L 150 50" fill="none" stroke="#10b981" strokeWidth="1" markerEnd="url(#arrow)" />
-              
-              <text x="35" y="52" fontSize="5" fill="#8b949e" textAnchor="middle">Input</text>
-              <text x="100" y="52" fontSize="5" fill="#8b949e" textAnchor="middle">Process</text>
-              <text x="165" y="52" fontSize="5" fill="#8b949e" textAnchor="middle">Output</text>
-            </svg>
+        )}
+
+        {activeTab === 'Metadata' && (
+          <div className="flex flex-col space-y-4">
+            {loadingMetadata ? (
+              <div className="text-xs text-muted-foreground text-center py-8">Loading metadata...</div>
+            ) : !metadata || Object.keys(metadata).length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-8">No metadata available.</div>
+            ) : (
+              <div className="bg-[#12181f] border border-[#1e2329] rounded-lg p-4 space-y-3">
+                {Object.entries(metadata).map(([key, value]: [string, any]) => (
+                  <div key={key} className="flex flex-col space-y-1 border-b border-[#1e2329] pb-2 last:border-0 last:pb-0">
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{key}</span>
+                    <span className="text-xs text-foreground font-mono break-all">
+                      {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {activeTab === 'Logs' && (
+          <div className="flex flex-col bg-[#0d1117] border border-[#1e2329] rounded-lg p-3 h-[400px] overflow-y-auto font-mono text-[10px]">
+            {logs.length === 0 ? (
+              <span className="text-muted-foreground text-center py-4">Waiting for logs...</span>
+            ) : (
+              logs.map((log, i) => (
+                <div key={i} className="flex space-x-2 py-1">
+                  <span className="text-[#3b82f6] shrink-0">[{log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : 'TIME'}]</span>
+                  <span className={`shrink-0 ${log.level === 'ERROR' ? 'text-red-500' : 'text-muted-foreground'}`}>[{log.level}]</span>
+                  <span className={log.level === 'ERROR' ? 'text-red-400' : 'text-foreground'}>{log.message}</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
       </div>
 
       {/* Footer Buttons Fixed */}
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-[#0d1117] border-t border-[#30363d] flex items-center justify-between space-x-2">
-        <button className="flex-1 flex items-center justify-center space-x-1 py-1.5 rounded border border-[#30363d] text-muted-foreground hover:text-foreground hover:bg-[#30363d]/50 transition-colors text-[10px] font-medium">
-          <Box className="h-3 w-3" />
-          <span>View Chunks</span>
-        </button>
-        <button className="flex-1 flex items-center justify-center space-x-1 py-1.5 rounded border border-[#30363d] text-muted-foreground hover:text-foreground hover:bg-[#30363d]/50 transition-colors text-[10px] font-medium">
-          <Download className="h-3 w-3" />
-          <span>Download</span>
-        </button>
-        <button className="flex-1 flex items-center justify-center space-x-1 py-1.5 rounded border border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors text-[10px] font-medium">
+        <button 
+          onClick={async () => {
+            if (confirm("Are you sure you want to delete this job and its ingested data?")) {
+              if (onClose) onClose(job.id, true);
+            }
+          }}
+          className="flex-1 flex items-center justify-center space-x-1 py-1.5 rounded border border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors text-[10px] font-medium"
+        >
           <Trash2 className="h-3 w-3" />
           <span>Delete</span>
         </button>

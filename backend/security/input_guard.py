@@ -24,8 +24,8 @@ import time
 
 from redis.asyncio import Redis
 from app.config import SecuritySettings, get_settings
-from app.models import QueryRequest, TenantContext
-from services.tenant_registry import registry
+from app.models import QueryRequest
+
 
 logger = logging.getLogger(__name__)
 
@@ -102,16 +102,19 @@ class InputGuard:
         Override ``SecuritySettings`` (mainly for testing).
     """
 
-    def __init__(self, redis_client: Redis, settings: Optional[SecuritySettings] = None) -> None:
+    def __init__(self, redis_client: Optional[Redis] = None, settings: Optional[SecuritySettings] = None) -> None:
         self._cfg: SecuritySettings = settings or get_settings().security
-        self._redis = redis_client
+        if redis_client is None:
+            self._redis = Redis.from_url(get_settings().redis.url, decode_responses=True)
+        else:
+            self._redis = redis_client
 
-    async def validate(self, request: QueryRequest, tenant_context: TenantContext) -> None:
+    async def validate(self, request: QueryRequest) -> None:
         """
         Validate *request*.  Raises ``SecurityError`` on any violation.
-        Rate limits based on tenant_id.
+        Rate limits globally.
         """
-        await self._check_rate_limit(tenant_context)
+        await self._check_rate_limit()
         self._check_length(request.query)
         if self._cfg.pii_detection_enabled:
             self._check_pii(request.query)
@@ -121,15 +124,14 @@ class InputGuard:
     # Checks
     # ------------------------------------------------------------------
     
-    async def _check_rate_limit(self, tenant_context: TenantContext) -> None:
-        tenant_config = await registry.get_tenant_config(tenant_context.tenant_id)
-        limit = tenant_config.rate_limit_requests_per_minute or self._cfg.rate_limit_requests_per_minute
+    async def _check_rate_limit(self) -> None:
+        limit = self._cfg.rate_limit_requests_per_minute
         
         if limit <= 0:
             return  # No limit
             
         current_minute = int(time.time() / 60)
-        key = f"{tenant_context.tenant_id}:rate_limit:{current_minute}"
+        key = f"global:rate_limit:{current_minute}"
         
         current_count = await self._redis.incr(key)
         if current_count == 1:
@@ -137,6 +139,7 @@ class InputGuard:
             
         if current_count > limit:
             raise SecurityError(f"Rate limit exceeded. Maximum {limit} requests per minute allowed.")
+
 
     def _check_length(self, query: str) -> None:
         if len(query) > self._cfg.max_query_length:

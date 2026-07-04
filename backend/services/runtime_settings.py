@@ -48,17 +48,11 @@ class RuntimeSettingsService:
         self._cache: Dict[str, _CacheEntry] = {}
         self._lock = asyncio.Lock()
 
-    def _cache_key(self, tenant_id: str, key: str) -> str:
-        return f"{tenant_id}:{key}"
+    def _cache_key(self, key: str) -> str:
+        return key
 
-    async def get(self, tenant_id: str, key: str, default: Any = None) -> Any:
-        """
-        Return the effective value for (tenant_id, key).
-
-        Order: RuntimeSetting row → default.
-        Result is TTL-cached for 60 s.
-        """
-        ck = self._cache_key(tenant_id, key)
+    async def get(self, key: str, default: Any = None) -> Any:
+        ck = self._cache_key(key)
         now = time.monotonic()
 
         async with self._lock:
@@ -67,13 +61,12 @@ class RuntimeSettingsService:
                 if now < expires:
                     return value
             # Cache miss or expired — fetch from DB
-            value = await self._fetch(tenant_id, key, default)
+            value = await self._fetch(key, default)
             self._cache[ck] = (value, now + _CACHE_TTL_SECONDS)
             return value
 
     async def set(
         self,
-        tenant_id: str,
         key: str,
         value: Any,
         updated_by: Optional[str] = None,
@@ -83,14 +76,12 @@ class RuntimeSettingsService:
         async with async_session_factory() as db:
             result = await db.execute(
                 select(RuntimeSetting).where(
-                    RuntimeSetting.tenant_id == tenant_id,
                     RuntimeSetting.key == key,
                 )
             )
             row = result.scalar_one_or_none()
             if row is None:
                 db.add(RuntimeSetting(
-                    tenant_id=tenant_id,
                     key=key,
                     value=json_value,
                     updated_by=updated_by,
@@ -101,24 +92,23 @@ class RuntimeSettingsService:
             await db.commit()
 
         # Invalidate cache
-        ck = self._cache_key(tenant_id, key)
+        ck = self._cache_key(key)
         async with self._lock:
             self._cache.pop(ck, None)
 
-    async def get_all_for_tenant(self, tenant_id: str) -> Dict[str, Any]:
-        """Return all RuntimeSetting rows for a tenant as a {key: value} dict."""
+    async def get_all(self) -> Dict[str, Any]:
+        """Return all RuntimeSetting rows as a {key: value} dict."""
         async with async_session_factory() as db:
             result = await db.execute(
-                select(RuntimeSetting).where(RuntimeSetting.tenant_id == tenant_id)
+                select(RuntimeSetting)
             )
             rows = result.scalars().all()
         return {row.key: json.loads(row.value) for row in rows}
 
-    async def _fetch(self, tenant_id: str, key: str, default: Any) -> Any:
+    async def _fetch(self, key: str, default: Any) -> Any:
         async with async_session_factory() as db:
             result = await db.execute(
                 select(RuntimeSetting).where(
-                    RuntimeSetting.tenant_id == tenant_id,
                     RuntimeSetting.key == key,
                 )
             )
@@ -128,7 +118,7 @@ class RuntimeSettingsService:
         try:
             return json.loads(row.value)
         except json.JSONDecodeError:
-            logger.warning("RuntimeSetting: could not JSON-decode value for %s:%s", tenant_id, key)
+            logger.warning("RuntimeSetting: could not JSON-decode value for %s", key)
             return default
 
 

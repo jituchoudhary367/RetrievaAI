@@ -1,9 +1,27 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { MessageSquare, CheckCircle, Clock, Database, DollarSign, ArrowUp, ArrowDown } from 'lucide-react';
+import { analyticsApi, AnalyticsOverview } from '../../lib/api/analytics';
 
 export function AnalyticsStatsRow() {
+  const [stats, setStats] = useState<AnalyticsOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const data = await analyticsApi.getOverview();
+        setStats(data);
+      } catch (e) {
+        console.error("Failed to load overview stats", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadStats();
+  }, []);
+
   const StatCard = ({ title, value, subtext, subtextColor, subtextIcon: SubIcon, icon: Icon, colorClass, iconBg, svgPath, svgGradient }: any) => (
     <div className="flex-1 bg-[#12181f] border border-[#1e2329] rounded-xl p-4 hover:border-[#30363d] transition-colors relative overflow-hidden flex flex-col justify-between min-h-[110px]">
       <div className="flex items-start justify-between relative z-10">
@@ -24,36 +42,45 @@ export function AnalyticsStatsRow() {
       <div className="absolute bottom-0 left-0 right-0 h-10 w-full opacity-60">
         <svg viewBox="0 0 100 30" className="w-full h-full" preserveAspectRatio="none">
           <defs>
-            <linearGradient id={`grad-${title}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`grad-${title.replace(/ /g, '-')}`} x1="0" y1="0" x2="0" y2="1">
               {svgGradient}
             </linearGradient>
           </defs>
           <path 
             d={svgPath}
             fill="none" 
-            stroke={`url(#grad-${title})`} 
+            stroke={`url(#grad-${title.replace(/ /g, '-')})`} 
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
             className={`drop-shadow-[0_2px_4px_${colorClass.replace('text-', '')}]`}
           />
-          {/* Add some glowing dots on the line */}
-          <circle cx="20" cy="22" r="1.5" className={`fill-background ${colorClass.replace('text-', 'stroke-')}`} strokeWidth="1" />
-          <circle cx="50" cy="15" r="1.5" className={`fill-background ${colorClass.replace('text-', 'stroke-')}`} strokeWidth="1" />
-          <circle cx="80" cy="8" r="1.5" className={`fill-background ${colorClass.replace('text-', 'stroke-')}`} strokeWidth="1" />
         </svg>
       </div>
     </div>
   );
 
+  if (loading) {
+    return <div className="animate-pulse h-[110px] bg-[#12181f] rounded-xl border border-[#1e2329] w-full" />;
+  }
+
+  const defaultStats: AnalyticsOverview = {
+    totalQueries: 0,
+    avgLatencyMs: 0,
+    activeUsers: 0,
+    documentsIndexed: 0,
+    totalChunks: 0,
+  };
+
+  const current = stats || defaultStats;
+
   return (
     <div className="flex flex-col sm:flex-row w-full gap-4">
       <StatCard 
         title="Total Queries" 
-        value="12,845" 
-        subtext="18.6% vs last 7 days"
-        subtextColor="text-[#10b981]"
-        subtextIcon={ArrowUp}
+        value={current.totalQueries.toLocaleString()} 
+        subtext="Total usage in time range"
+        subtextColor="text-muted-foreground"
         icon={MessageSquare}
         colorClass="text-[#10b981]"
         iconBg="bg-[#10b981]/10"
@@ -61,9 +88,9 @@ export function AnalyticsStatsRow() {
         svgGradient={<><stop offset="0%" stopColor="#10b981" /><stop offset="100%" stopColor="#047857" /></>}
       />
       <StatCard 
-        title="Successful Responses" 
-        value="12,402" 
-        subtext="96.6% Success Rate"
+        title="Active Users" 
+        value={current.activeUsers.toLocaleString()} 
+        subtext="Unique users"
         subtextColor="text-muted-foreground"
         icon={CheckCircle}
         colorClass="text-[#3b82f6]"
@@ -73,10 +100,9 @@ export function AnalyticsStatsRow() {
       />
       <StatCard 
         title="Avg. Response Time" 
-        value="1.42s" 
-        subtext="12.4% vs last 7 days"
-        subtextColor="text-[#10b981]"
-        subtextIcon={ArrowDown}
+        value={`${(current.avgLatencyMs / 1000).toFixed(2)}s`} 
+        subtext="End-to-end latency"
+        subtextColor="text-muted-foreground"
         icon={Clock}
         colorClass="text-[#8b5cf6]"
         iconBg="bg-[#8b5cf6]/10"
@@ -84,28 +110,15 @@ export function AnalyticsStatsRow() {
         svgGradient={<><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#6d28d9" /></>}
       />
       <StatCard 
-        title="Tokens Used" 
-        value="2.43M" 
-        subtext="24.8% vs last 7 days"
-        subtextColor="text-yellow-500"
-        subtextIcon={ArrowUp}
+        title="Documents Indexed" 
+        value={current.documentsIndexed?.toLocaleString() || '0'} 
+        subtext={`${current.totalChunks?.toLocaleString() || '0'} Total Chunks`}
+        subtextColor="text-muted-foreground"
         icon={Database}
         colorClass="text-yellow-500"
         iconBg="bg-yellow-500/10"
         svgPath="M 0 25 L 25 15 L 45 18 L 60 10 L 80 12 L 100 5"
         svgGradient={<><stop offset="0%" stopColor="#eab308" /><stop offset="100%" stopColor="#a16207" /></>}
-      />
-      <StatCard 
-        title="Cost (USD)" 
-        value="$48.67" 
-        subtext="21.3% vs last 7 days"
-        subtextColor="text-red-500"
-        subtextIcon={ArrowUp}
-        icon={DollarSign}
-        colorClass="text-red-500"
-        iconBg="bg-red-500/10"
-        svgPath="M 0 25 L 15 18 L 30 22 L 45 15 L 60 18 L 80 8 L 100 12"
-        svgGradient={<><stop offset="0%" stopColor="#ef4444" /><stop offset="100%" stopColor="#b91c1c" /></>}
       />
     </div>
   );

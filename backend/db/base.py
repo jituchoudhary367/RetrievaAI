@@ -4,7 +4,7 @@ db/base.py
 SQLAlchemy declarative base with timestamp and tenant-id mixins.
 
 All ORM models inherit from `Base` and optionally from `TimestampMixin`
-and/or `TenantMixin` for consistent column layouts.
+for consistent column layouts.
 """
 
 from __future__ import annotations
@@ -45,9 +45,3 @@ class TimestampMixin:
     )
 
 
-class TenantMixin:
-    """Adds `tenant_id` to any model for row-level multi-tenancy."""
-
-    tenant_id: Mapped[str] = mapped_column(
-        String(36), nullable=False, index=True
-    )

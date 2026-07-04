@@ -136,6 +136,10 @@ class Embedder:
         Override ``EmbeddingSettings`` (mainly for testing).
     """
 
+    # Shared HuggingFace model cache — model_name → SentenceTransformer instance.
+    # Avoids reloading the model on every request (loading takes ~2–5 seconds).
+    _hf_model_cache: Dict[str, object] = {}
+
     def __init__(
         self,
         cache: Optional[EmbeddingCache] = None,
@@ -257,7 +261,7 @@ class Embedder:
                 "Install it with: pip install openai"
             ) from exc
 
-        api_key = get_settings().resolved_embedding_api_key()
+        api_key = self._cfg.api_key or get_settings().resolved_embedding_api_key()
         client = openai.OpenAI(
             api_key=api_key,
             timeout=self._cfg.request_timeout,
@@ -281,7 +285,15 @@ class Embedder:
             ) from exc
 
         try:
-            model = SentenceTransformer(self._cfg.model_name)
+            model_name = self._cfg.model_name
+            if model_name not in Embedder._hf_model_cache:
+                logger.info("Loading HuggingFace model '%s' (first call only)...", model_name)
+                Embedder._hf_model_cache[model_name] = SentenceTransformer(
+                    model_name, 
+                    device="cpu",
+                    model_kwargs={"low_cpu_mem_usage": False}
+                )
+            model = Embedder._hf_model_cache[model_name]
             embeddings = model.encode(texts, convert_to_numpy=True)
             return [list(map(float, e)) for e in embeddings]
         except Exception as exc:
@@ -296,7 +308,7 @@ class Embedder:
                 "Install it with: pip install cohere"
             ) from exc
 
-        api_key = get_settings().resolved_embedding_api_key()
+        api_key = self._cfg.api_key or get_settings().resolved_embedding_api_key()
         try:
             co = cohere.Client(api_key=api_key)
             response = co.embed(

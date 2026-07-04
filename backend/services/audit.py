@@ -9,7 +9,6 @@ so it never blocks the HTTP response.
 Usage:
     from services.audit import log_action
     await log_action(
-        tenant_id=user.tenant_id,
         actor_user_id=user.id,
         action="document.delete",
         target=f"document:{doc_id}",
@@ -31,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 async def log_action(
     *,
-    tenant_id: str,
     actor_user_id: Optional[str],
     action: str,
     target: Optional[str] = None,
@@ -46,7 +44,6 @@ async def log_action(
     try:
         async with async_session_factory() as db:
             db.add(AuditLogEntry(
-                tenant_id=tenant_id,
                 actor_user_id=actor_user_id,
                 action=action,
                 target=target,

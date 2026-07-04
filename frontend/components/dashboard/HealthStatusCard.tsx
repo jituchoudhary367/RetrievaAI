@@ -1,7 +1,7 @@
 import React from "react";
 import { HealthStatus } from "../../lib/types/models";
-import { Card, CardContent } from "../ui/Card";
-import { Badge } from "../ui/Badge";
+import { Card, CardContent } from "../ui/card";
+import { Badge } from "../ui/badge";
 import { Activity, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 export function HealthStatusCard({ status, label }: { status: HealthStatus; label: string }) {

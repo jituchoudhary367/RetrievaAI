@@ -1,7 +1,7 @@
 import React from "react";
 import { MetadataFilter } from "../../lib/types/models";
-import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { Plus, X } from "lucide-react";
 
 export function FilterBuilder({ filters, onChange }: { filters: MetadataFilter[]; onChange: (f: MetadataFilter[]) => void }) {

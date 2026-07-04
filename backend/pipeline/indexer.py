@@ -137,7 +137,15 @@ class BM25Index:
     def save(self, path: Path) -> None:
         """Pickle the index to *path* (creates parent dirs if needed)."""
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        parent = path.parent
+        # Auto-recover: if parent path is a file (not a dir), remove it first
+        if parent.exists() and not parent.is_dir():
+            logger.warning(
+                "BM25 parent path %s is a file, not a directory — removing and recreating.",
+                parent,
+            )
+            parent.unlink()
+        parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as fh:
             pickle.dump(self, fh, protocol=pickle.HIGHEST_PROTOCOL)
         logger.debug("BM25Index saved to %s (%d docs).", path, len(self._corpus))
@@ -168,38 +176,7 @@ class BM25Index:
         return len(self._corpus)
 
 
-class BM25IndexPool:
-    """
-    Manages an LRU cache of tenant-scoped BM25Index objects.
-    Each tenant gets a separate index file (e.g., bm25_index_{tenant_id}.pkl).
-    """
 
-    def __init__(self, capacity: int = 100) -> None:
-        self._cfg = get_settings().qdrant
-        self._cache: LRUCache = LRUCache(maxsize=capacity)
-
-    def get(self, tenant_id: str) -> BM25Index:
-        if tenant_id in self._cache:
-            return self._cache[tenant_id]
-
-        path = self._get_path(tenant_id)
-        index = BM25Index.load(path)
-        self._cache[tenant_id] = index
-        return index
-
-    def save(self, tenant_id: str) -> None:
-        if tenant_id in self._cache:
-            path = self._get_path(tenant_id)
-            self._cache[tenant_id].save(path)
-
-    def _get_path(self, tenant_id: str) -> Path:
-        base = self._cfg.bm25_index_path
-        return base.with_name(f"{base.name}_{tenant_id}.pkl")
-
-
-# ---------------------------------------------------------------------------
-# Qdrant indexer
-# ---------------------------------------------------------------------------
 
 class QdrantIndexer:
     """
@@ -299,7 +276,7 @@ class QdrantIndexer:
             }
             points.append(
                 PointStruct(
-                    id=_chunk_id_to_int(chunk.chunk_id),
+                    id=chunk.chunk_id,
                     vector=chunk.embedding,
                     payload=payload,
                 )
@@ -332,8 +309,8 @@ class QdrantIndexer:
             with_payload=True,
         )
 
-    def delete_by_document_id(self, document_id: str, tenant_id: str) -> None:
-        """Delete all points belonging to *document_id* for a specific *tenant_id*."""
+    def delete_by_document_id(self, document_id: str) -> None:
+        """Delete all points belonging to *document_id*."""
         try:
             from qdrant_client.http.models import Filter, FieldCondition, MatchValue  # noqa: PLC0415
         except ImportError as exc:
@@ -342,22 +319,66 @@ class QdrantIndexer:
             ) from exc
 
         client = self._get_client()
-        tenant_payload_field = self._cfg.model_dump().get("tenant_id_payload_field", "tenant_id")
-        # In QdrantSettings we don't have tenant_id_payload_field, we get it from TenancySettings
-        tenant_payload_field = get_settings().tenancy.tenant_id_payload_field
         
         client.delete(
             collection_name=self._cfg.collection_name,
             points_selector=Filter(
                 must=[
                     FieldCondition(key="document_id", match=MatchValue(value=document_id)),
-                    FieldCondition(key=tenant_payload_field, match=MatchValue(value=tenant_id)),
                 ]
             ),
             wait=True,
         )
-        logger.info("Deleted all points for document_id=%s, tenant_id=%s from Qdrant.", document_id, tenant_id)
+        logger.info("Deleted all points for document_id=%s from Qdrant.", document_id)
 
+    def delete_by_source_path(self, source_path: str) -> None:
+        """Delete all points belonging to a specific *source_path*."""
+        try:
+            from qdrant_client.http.models import Filter, FieldCondition, MatchValue  # noqa: PLC0415
+        except ImportError as exc:
+            raise ImportError(
+                "qdrant-client is required. Install it with: pip install qdrant-client"
+            ) from exc
+
+        client = self._get_client()
+        
+        client.delete(
+            collection_name=self._cfg.collection_name,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(key="source_path", match=MatchValue(value=source_path)),
+                ]
+            ),
+            wait=True,
+        )
+        logger.info("Deleted all points for source_path=%s from Qdrant.", source_path)
+
+
+    def get_chunks_by_source_path(self, source_path: str, limit: int = 100) -> List[dict]:
+        """Fetch chunks for a specific source path from Qdrant (for UI display)."""
+        try:
+            from qdrant_client.http.models import Filter, FieldCondition, MatchValue  # noqa: PLC0415
+        except ImportError:
+            return []
+
+        client = self._get_client()
+        
+        try:
+            results, _ = client.scroll(
+                collection_name=self._cfg.collection_name,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(key="source_path", match=MatchValue(value=source_path)),
+                    ]
+                ),
+                limit=limit,
+                with_payload=True,
+                with_vectors=False
+            )
+            return [p.payload for p in results if p.payload]
+        except Exception as e:
+            logger.error("Failed to fetch chunks from Qdrant: %s", e)
+            return []
 
 # ---------------------------------------------------------------------------
 # Indexer facade
@@ -367,19 +388,31 @@ class Indexer:
     """
     Facade that keeps ``QdrantIndexer`` and ``BM25Index`` in sync.
 
-    BM25 index is loaded from disk on construction and persisted after every
-    write operation.
+    BM25 index is loaded lazily per user via a `BM25UserPool` pattern.
     """
 
     def __init__(self) -> None:
         self._qdrant = QdrantIndexer()
-        self._bm25_pool = BM25IndexPool()
+        self._bm25_pool: Dict[str, BM25Index] = {}
+
+    def _get_bm25(self, user_id: str) -> BM25Index:
+        if user_id not in self._bm25_pool:
+            base_path = get_settings().qdrant.bm25_index_path
+            user_path = base_path / f"{user_id}.pkl"
+            self._bm25_pool[user_id] = BM25Index.load(user_path)
+        return self._bm25_pool[user_id]
+
+    def _save_bm25(self, user_id: str) -> None:
+        if user_id in self._bm25_pool:
+            base_path = get_settings().qdrant.bm25_index_path
+            user_path = base_path / f"{user_id}.pkl"
+            self._bm25_pool[user_id].save(user_path)
 
     # ------------------------------------------------------------------
     # Write
     # ------------------------------------------------------------------
 
-    def index_chunks(self, chunks: List[Chunk]) -> int:
+    def index_chunks(self, chunks: List[Chunk], user_id: str) -> int:
         """
         Upsert *chunks* into Qdrant and BM25.
 
@@ -389,31 +422,25 @@ class Indexer:
         if not chunks:
             return 0
 
-        tenant_ids = {c.tenant_id for c in chunks}
-        if len(tenant_ids) > 1:
-            raise IndexingError("Cannot index chunks for multiple tenants in a single batch.")
-            
-        tenant_id = tenant_ids.pop()
-
         try:
             count = self._qdrant.upsert_chunks(chunks)
         except Exception as exc:
             raise IndexingError(f"Qdrant upsert failed: {exc}") from exc
 
-        bm25_index = self._bm25_pool.get(tenant_id)
+        bm25 = self._get_bm25(user_id)
         for chunk in chunks:
             try:
-                bm25_index.add_documents(chunk.chunk_id, chunk.text)
+                bm25.add_documents(chunk.chunk_id, chunk.text)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("BM25 indexing failed for chunk %s: %s", chunk.chunk_id, exc)
 
-        self._bm25_pool.save(tenant_id)
+        self._save_bm25(user_id)
         return count
 
-    def remove_document(self, document_id: str, tenant_id: str) -> None:
+    def remove_document(self, document_id: str, user_id: str) -> None:
         """Remove all chunks for *document_id* from both indexes."""
         try:
-            self._qdrant.delete_by_document_id(document_id, tenant_id)
+            self._qdrant.delete_by_document_id(document_id)
         except Exception as exc:
             raise IndexingError(
                 f"Qdrant delete for document {document_id} failed: {exc}"
@@ -425,7 +452,20 @@ class Indexer:
             "mapping; skipping BM25 removal for document %s.",
             document_id,
         )
-        self._bm25_pool.save(tenant_id)
+        self._save_bm25(user_id)
+
+    def remove_by_source(self, source_path: str, user_id: str) -> None:
+        """Remove all chunks for *source_path* from both indexes."""
+        try:
+            self._qdrant.delete_by_source_path(source_path)
+        except Exception as exc:
+            raise IndexingError(
+                f"Qdrant delete for source_path {source_path} failed: {exc}"
+            ) from exc
+
+        # BM25
+        logger.info("BM25 remove_by_source: skipping BM25 removal since no mapping available.")
+        self._save_bm25(user_id)
 
     # ------------------------------------------------------------------
     # Private
@@ -450,6 +490,5 @@ __all__ = [
     "Indexer",
     "QdrantIndexer",
     "BM25Index",
-    "BM25IndexPool",
     "IndexingError",
 ]

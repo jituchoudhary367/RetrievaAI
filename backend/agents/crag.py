@@ -63,7 +63,6 @@ class CragAgent:
 
     def correct(
         self,
-        tenant_id: str,
         query: str,
         chunks: List[RetrievedChunk],
     ) -> List[RetrievedChunk]:
@@ -79,7 +78,7 @@ class CragAgent:
         current_chunks = list(chunks)
 
         for attempt in range(self._cfg.max_correction_retries + 1):
-            grades = self._grader.grade(tenant_id, query, current_chunks)
+            grades = self._grader.grade(query, current_chunks)
             all_good, needs_correction = self._assess_grades(grades)
 
             if all_good:
@@ -97,7 +96,7 @@ class CragAgent:
                 self._cfg.max_correction_retries,
             )
 
-            extra_chunks = self._fetch_extra_context(query, grades, tenant_id)
+            extra_chunks = self._fetch_extra_context(query, grades)
             if not extra_chunks:
                 logger.warning("CRAG: no extra context retrieved; stopping correction.")
                 break
@@ -133,7 +132,6 @@ class CragAgent:
         self,
         query: str,
         grades: List[Tuple[RetrievedChunk, RelevanceGrade, float]],
-        tenant_id: str,
     ) -> List[RetrievedChunk]:
         """Fetch supplementary context from enabled fallback sources."""
         extra: List[RetrievedChunk] = []
@@ -141,14 +139,13 @@ class CragAgent:
         # Web search fallback
         if self._cfg.web_search_fallback:
             try:
-                web_results = self._web_search.search(query, top_k=3, tenant_id=tenant_id)
+                web_results = self._web_search.search(query, top_k=3)
                 for result in web_results:
                     snippet = result.get("snippet", "").strip()
                     if snippet:
                         extra.append(
                             RetrievedChunk(
                                 chunk_id=f"web:{hash(snippet) & 0xFFFFFFFF:08x}",
-                                tenant_id=tenant_id,
                                 document_id=result.get("url", "web"),
                                 text=snippet,
                                 source=RetrievalSource.WEB,
@@ -169,14 +166,13 @@ class CragAgent:
             try:
                 import os  # noqa: PLC0415
                 repo_path = os.getcwd()
-                code_results = self._code_search.search(query, repo_path=repo_path, top_k=3, tenant_id=tenant_id)
+                code_results = self._code_search.search(query, repo_path=repo_path, top_k=3)
                 for result in code_results:
                     snippet = result.get("snippet", "").strip()
                     if snippet:
                         extra.append(
                             RetrievedChunk(
                                 chunk_id=f"code:{hash(snippet) & 0xFFFFFFFF:08x}",
-                                tenant_id=tenant_id,
                                 document_id=result.get("file_path", "code"),
                                 text=snippet,
                                 source=RetrievalSource.CODE,

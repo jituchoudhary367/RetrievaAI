@@ -84,7 +84,7 @@ async def list_tools(
     db: AsyncSession = Depends(get_db),
 ) -> List[ToolOut]:
     result = await db.execute(
-        select(Tool).where(Tool.tenant_id == current_user.tenant_id).order_by(Tool.name)
+        select(Tool).order_by(Tool.name)
     )
     tools = result.scalars().all()
     return [ToolOut.from_orm(t) for t in tools]
@@ -97,7 +97,6 @@ async def register_tool(
 ) -> ToolOut:
     """Register a new metadata-only tool."""
     tool = Tool(
-        tenant_id=current_user.tenant_id,
         name=body.name,
         category=body.category,
         description=body.description,
@@ -110,7 +109,6 @@ async def register_tool(
     
     import asyncio
     asyncio.create_task(log_action(
-        tenant_id=current_user.tenant_id,
         actor_user_id=current_user.id,
         action="tool.register",
         target=f"tool:{tool.id}",
@@ -126,7 +124,7 @@ async def get_tool(
     db: AsyncSession = Depends(get_db),
 ) -> ToolOut:
     result = await db.execute(
-        select(Tool).where(Tool.id == tool_id, Tool.tenant_id == current_user.tenant_id)
+        select(Tool).where(Tool.id == tool_id)
     )
     tool = result.scalar_one_or_none()
     if not tool:
@@ -142,14 +140,14 @@ async def get_tool_executions(
 ) -> List[ToolExecutionOut]:
     # Verify tool exists for tenant
     tool = await db.execute(
-        select(Tool.id).where(Tool.id == tool_id, Tool.tenant_id == current_user.tenant_id)
+        select(Tool.id).where(Tool.id == tool_id)
     )
     if not tool.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Tool not found")
         
     result = await db.execute(
         select(ToolExecution)
-        .where(ToolExecution.tool_id == tool_id, ToolExecution.tenant_id == current_user.tenant_id)
+        .where(ToolExecution.tool_id == tool_id)
         .order_by(ToolExecution.created_at.desc())
         .limit(limit)
     )

@@ -49,6 +49,9 @@ alembic = "^1.14.0"
 # --- Async job queue ---
 rq = "^2.0.0"
 
+# --- Cache ---
+cachetools = "^5.5.0"
+
 # --- Auth / Security ---
 python-jose = { extras = ["cryptography"], version = "^3.3.0" }
 passlib = { extras = ["bcrypt"], version = "^1.7.4" }

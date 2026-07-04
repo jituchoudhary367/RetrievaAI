@@ -45,7 +45,6 @@ class DocumentGrader:
 
     def grade(
         self,
-        tenant_id: str,
         query: str,
         chunks: List[RetrievedChunk],
     ) -> List[Tuple[RetrievedChunk, RelevanceGrade, float]]:
@@ -68,13 +67,6 @@ class DocumentGrader:
         results: List[Tuple[RetrievedChunk, RelevanceGrade, float]] = []
 
         for chunk in chunks:
-            if chunk.tenant_id != tenant_id:
-                logger.error(
-                    "Security violation: Chunk %s belongs to tenant %s, but graded for tenant %s.",
-                    chunk.chunk_id, chunk.tenant_id, tenant_id
-                )
-                continue
-                
             grade, score = self._grade_one(query, chunk)
             results.append((chunk, grade, score))
 
@@ -122,9 +114,9 @@ class DocumentGrader:
             )
             return msg.content[0].text if msg.content else None
 
-        if provider == "openai":
+        if provider in ("openai", "groq", "openrouter"):
             import openai  # noqa: PLC0415
-            oc = openai.OpenAI(api_key=api_key)
+            oc = openai.OpenAI(api_key=api_key, base_url=cfg.resolved_llm_base_url())
             resp = oc.chat.completions.create(
                 model=self._llm_cfg.model_name,
                 messages=[{"role": "user", "content": prompt}],

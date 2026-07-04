@@ -58,9 +58,9 @@ class ConversationStore:
     # Public API
     # ------------------------------------------------------------------
 
-    def add_message(self, tenant_id: str, session_id: str, message: ChatMessage) -> None:
+    def add_message(self, session_id: str, message: ChatMessage, user_id: str) -> None:
         """Append *message* to the session history, then trim if needed."""
-        key = self._key(tenant_id, session_id)
+        key = self._key(session_id, user_id)
         serialised = message.model_dump_json(by_alias=True)
         client = self._get_client()
 
@@ -80,9 +80,9 @@ class ConversationStore:
         history.append(serialised)
         self._trim_fallback(key)
 
-    def get_history(self, tenant_id: str, session_id: str) -> List[ChatMessage]:
+    def get_history(self, session_id: str, user_id: str) -> List[ChatMessage]:
         """Return the conversation history for *session_id*."""
-        key = self._key(tenant_id, session_id)
+        key = self._key(session_id, user_id)
         client = self._get_client()
 
         raw_list: List[str] = []
@@ -104,7 +104,7 @@ class ConversationStore:
 
         return messages
 
-    def summarize_if_needed(self, tenant_id: str, session_id: str) -> None:
+    def summarize_if_needed(self, session_id: str, user_id: str) -> None:
         """
         Trigger summarisation when the session history exceeds
         ``summarization_trigger_turns`` turns (if summarisation is enabled).
@@ -114,7 +114,7 @@ class ConversationStore:
         if not self._conv_cfg.summarization_enabled:
             return
 
-        history = self.get_history(tenant_id, session_id)
+        history = self.get_history(session_id, user_id)
         num_turns = len(history) // 2  # user+assistant pairs
 
         if num_turns < self._conv_cfg.summarization_trigger_turns:
@@ -128,7 +128,7 @@ class ConversationStore:
         )
 
         try:
-            self._summarise(tenant_id, session_id, history)
+            self._summarise(session_id, user_id, history)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Summarisation failed for session %s: %s", session_id, exc)
 
@@ -136,7 +136,7 @@ class ConversationStore:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _summarise(self, tenant_id: str, session_id: str, history: List[ChatMessage]) -> None:
+    def _summarise(self, session_id: str, user_id: str, history: List[ChatMessage]) -> None:
         """Replace history with a summary + the most recent turns."""
         from prompts.templates import render_summarization_prompt  # noqa: PLC0415
 
@@ -159,8 +159,7 @@ class ConversationStore:
         recent = history[-4:] if len(history) > 4 else []
         new_history: List[ChatMessage] = [summary_message] + recent
 
-        # Replace Redis list
-        key = self._key(tenant_id, session_id)
+        key = self._key(session_id, user_id)
         client = self._get_client()
         serialised_list = [m.model_dump_json(by_alias=True) for m in new_history]
 
@@ -193,9 +192,9 @@ class ConversationStore:
                 )
                 return msg.content[0].text if msg.content else None
 
-            if provider == "openai":
+            if provider in ("openai", "groq", "openrouter"):
                 import openai  # noqa: PLC0415
-                oc = openai.OpenAI(api_key=api_key)
+                oc = openai.OpenAI(api_key=api_key, base_url=cfg.resolved_llm_base_url())
                 resp = oc.chat.completions.create(
                     model=cfg.llm.model_name,
                     messages=[{"role": "user", "content": prompt}],
@@ -252,8 +251,8 @@ class ConversationStore:
         return None
 
     @staticmethod
-    def _key(tenant_id: str, session_id: str) -> str:
-        return f"{tenant_id}:conversation:{session_id}"
+    def _key(session_id: str, user_id: str) -> str:
+        return f"{user_id}:conversation:{session_id}"
 
 
 __all__ = ["ConversationStore"]

@@ -22,8 +22,8 @@ import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import EventSourceResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, Response
+from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,7 +91,7 @@ async def list_jobs(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IngestionJobListResponse:
-    q = select(IngestionJob).where(IngestionJob.tenant_id == current_user.tenant_id)
+    q = select(IngestionJob).where(IngestionJob.user_id == current_user.id)
     if status:
         q = q.where(IngestionJob.status == status)
     
@@ -100,7 +100,7 @@ async def list_jobs(
     result = await db.execute(q)
     jobs = result.scalars().all()
     
-    count_q = select(func.count()).select_from(IngestionJob).where(IngestionJob.tenant_id == current_user.tenant_id)
+    count_q = select(func.count()).select_from(IngestionJob).where(IngestionJob.user_id == current_user.id)
     if status:
         count_q = count_q.where(IngestionJob.status == status)
     total = (await db.execute(count_q)).scalar_one()
@@ -115,7 +115,7 @@ async def submit_job(
     file: UploadFile = File(...),
     chunk_size: Optional[int] = Form(default=None),
     chunk_overlap: Optional[int] = Form(default=None),
-    current_user: User = Depends(require_role("TENANT_ADMIN", "EDITOR")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IngestionJobSubmitResponse:
     
@@ -128,7 +128,7 @@ async def submit_job(
     
     import uuid
     temp_doc_id = str(uuid.uuid4())
-    blob_path = blob_svc.save(file_bytes, file.filename, current_user.tenant_id, temp_doc_id)
+    blob_path = blob_svc.save(file_bytes, file.filename, temp_doc_id, user_id=current_user.id)
 
     # Config overrides
     config = {}
@@ -136,11 +136,11 @@ async def submit_job(
     if chunk_overlap: config["chunk_overlap"] = chunk_overlap
 
     job = IngestionJob(
-        tenant_id=current_user.tenant_id,
         source_path_or_url=file.filename,
         source_type=file.content_type or "application/octet-stream",
         status="queued",
         config=json.dumps(config) if config else None,
+        user_id=current_user.id,
         submitted_by=current_user.id,
         blob_path=blob_path
     )
@@ -149,24 +149,18 @@ async def submit_job(
     job_id = job.id
     await db.commit()
 
-    # Enqueue task
+    # Execute task immediately in a background thread for real-time processing
     try:
-        from redis import Redis # type: ignore
-        from rq import Queue # type: ignore
         from tasks.ingestion_tasks import run_ingestion_job # type: ignore
-        cfg = get_settings()
-        r = Redis.from_url(cfg.redis.url)
-        q = Queue("ingestion", connection=r)
-        q.enqueue(run_ingestion_job, job_id, job_timeout=3600)
+        asyncio.create_task(asyncio.to_thread(run_ingestion_job, job_id))
     except Exception as exc:
-        logger.error("Failed to enqueue job: %s", exc)
+        logger.error("Failed to start background job: %s", exc)
         job.status = "failed"
-        job.error_message = "Failed to enqueue task"
+        job.error_message = "Failed to start background task"
         await db.commit()
-        raise HTTPException(status_code=500, detail="Failed to enqueue job")
+        raise HTTPException(status_code=500, detail="Failed to start background job")
 
     asyncio.create_task(log_action(
-        tenant_id=current_user.tenant_id,
         actor_user_id=current_user.id,
         action="ingestion.submit",
         target=f"job:{job_id}",
@@ -187,7 +181,7 @@ async def get_job(
     result = await db.execute(
         select(IngestionJob).where(
             IngestionJob.id == job_id,
-            IngestionJob.tenant_id == current_user.tenant_id
+            IngestionJob.user_id == current_user.id
         )
     )
     job = result.scalar_one_or_none()
@@ -195,36 +189,103 @@ async def get_job(
         raise HTTPException(status_code=404, detail="Job not found")
     return IngestionJobOut.from_orm(job)
 
-@router.delete("/jobs/{job_id}", status_code=204)
+@router.delete("/jobs/{job_id}", status_code=200)
 async def delete_job(
     job_id: str,
-    current_user: User = Depends(require_role("TENANT_ADMIN")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(
         select(IngestionJob).where(
             IngestionJob.id == job_id,
-            IngestionJob.tenant_id == current_user.tenant_id
+            IngestionJob.user_id == current_user.id
         )
     )
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # We do not delete the blob or document here, just the job record.
+    # Delete chunks from Qdrant via Indexer
+    from pipeline.indexer import Indexer
+    try:
+        Indexer().remove_by_source(job.source_path_or_url, user_id=current_user.id)
+    except Exception as e:
+        logger.error(f"Failed to delete chunks for {job_id} from vector DB: {e}")
+
+    # Delete Document from DB
+    from db.models.document import Document
+    doc_result = await db.execute(
+        select(Document).where(
+            Document.ingestion_job_id == job_id
+        )
+    )
+    doc = doc_result.scalar_one_or_none()
+    if doc:
+        await db.delete(doc)
+
     await db.delete(job)
     await db.commit()
+
+@router.get("/jobs/{job_id}/chunks")
+async def get_job_chunks(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[dict]:
+    result = await db.execute(
+        select(IngestionJob).where(
+            IngestionJob.id == job_id,
+            IngestionJob.user_id == current_user.id
+        )
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    from pipeline.indexer import QdrantIndexer
+    chunks = QdrantIndexer().get_chunks_by_source_path(job.source_path_or_url)
+    return chunks
+
+@router.get("/jobs/{job_id}/metadata")
+async def get_job_metadata(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from db.models.document import Document
+    doc_result = await db.execute(
+        select(Document).where(
+            Document.ingestion_job_id == job_id,
+            Document.user_id == current_user.id
+        )
+    )
+    doc = doc_result.scalar_one_or_none()
+    if not doc:
+        return {}
+        
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "source": doc.source,
+        "source_type": doc.source_type,
+        "chunk_count": doc.chunk_count,
+        "size_bytes": doc.size_bytes,
+        "quality_score": doc.quality_score,
+        "tags": doc.tags,
+        "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None
+    }
 
 @router.post("/jobs/{job_id}/cancel", status_code=200)
 async def cancel_job(
     job_id: str,
-    current_user: User = Depends(require_role("TENANT_ADMIN", "EDITOR")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     result = await db.execute(
         select(IngestionJob).where(
             IngestionJob.id == job_id,
-            IngestionJob.tenant_id == current_user.tenant_id
+            IngestionJob.user_id == current_user.id
         )
     )
     job = result.scalar_one_or_none()

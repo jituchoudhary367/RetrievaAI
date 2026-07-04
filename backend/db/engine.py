@@ -29,20 +29,18 @@ logger = logging.getLogger(__name__)
 
 def _build_db_url() -> str:
     cfg = get_settings()
-    db = cfg.database
-    return (
-        f"postgresql+asyncpg://{db.user}:{db.password}"
-        f"@{db.host}:{db.port}/{db.name}"
-    )
+    return cfg.database.url
 
 
 # Module-level engine — created once per process.
+cfg = get_settings()
 async_engine = create_async_engine(
     _build_db_url(),
     echo=False,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=cfg.database.pool_size,
+    max_overflow=cfg.database.max_overflow,
     pool_pre_ping=True,
+    pool_recycle=300,
 )
 
 async_session_factory = async_sessionmaker(

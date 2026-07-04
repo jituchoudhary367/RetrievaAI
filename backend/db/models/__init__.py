@@ -6,7 +6,8 @@ when `Base.metadata.create_all()` is called on startup.
 """
 
 from db.models.user import User, UserSession
-from db.models.tenant import Tenant, TenantConfig
+from db.models.invite import Invite
+from db.models.auth_token import AuthToken
 from db.models.telemetry import QueryEvent, QueryEventCitation, SearchEvent, SearchClickEvent
 from db.models.ingestion import IngestionJob, IngestionJobLog
 from db.models.document import Document
@@ -20,7 +21,7 @@ from db.models.health import HealthSample
 
 __all__ = [
     "User", "UserSession",
-    "Tenant", "TenantConfig",
+    "Invite", "AuthToken",
     "QueryEvent", "QueryEventCitation", "SearchEvent", "SearchClickEvent",
     "IngestionJob", "IngestionJobLog",
     "Document",

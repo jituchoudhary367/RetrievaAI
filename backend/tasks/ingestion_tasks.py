@@ -47,7 +47,12 @@ _REDIS_CHANNEL_PREFIX = "ingestion:"
 def _get_sync_session() -> tuple:
     """Return a (engine, Session) pair for the RQ worker process."""
     cfg = get_settings()
-    engine = create_engine(cfg.database.sync_url, pool_pre_ping=True)
+    engine = create_engine(
+        cfg.database.sync_url, 
+        pool_pre_ping=True,
+        pool_size=cfg.database.pool_size,
+        max_overflow=cfg.database.max_overflow
+    )
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     return engine, factory()
 
@@ -129,19 +134,27 @@ def run_ingestion_job(job_id: str) -> None:
         embedding_model = config.get("embedding_model", settings.embedding.model_name)
 
         # Build pipeline with per-job overrides
-        chunker = Chunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-        embedder = Embedder(model_name=embedding_model)
+        chunker = Chunker()
+        chunker._cfg = chunker._cfg.model_copy(update={
+            "chunk_size": chunk_size, 
+            "chunk_overlap": chunk_overlap
+        })
+        
+        embedder = Embedder()
+        embedder._cfg = embedder._cfg.model_copy(update={
+            "model_name": embedding_model
+        })
         pipeline = IngestionPipeline(chunker=chunker, embedder=embedder)
 
         # Determine source
         source_path = Path(job.source_path_or_url)
         blob_storage = get_blob_storage()
 
-        # If it's a blob path (starts with tenant_id), resolve from blob storage
+        # If it's a blob path, resolve from blob storage
         if not source_path.exists() and job.blob_path:
             # Write blob to a temp file for the pipeline
             import tempfile  # noqa: PLC0415
-            blob_bytes = blob_storage.load(job.blob_path)
+            blob_bytes = blob_storage.load(job.blob_path, user_id=job.user_id)
             suffix = Path(job.source_path_or_url).suffix or ".bin"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 tmp.write(blob_bytes)
@@ -155,7 +168,7 @@ def run_ingestion_job(job_id: str) -> None:
 
         # Run ingestion
         t_start = time.monotonic()
-        report = pipeline.ingest_path(source_path, force=True)
+        report = pipeline.ingest_path(source_path, user_id=job.user_id, force=True)
         elapsed = time.monotonic() - t_start
 
         # Update job with results
@@ -181,8 +194,8 @@ def run_ingestion_job(job_id: str) -> None:
         # Upsert Document catalog row (§1.3)
         existing = db.execute(
             select(Document).where(
-                Document.tenant_id == job.tenant_id,
                 Document.source == job.source_path_or_url,
+                Document.user_id == job.user_id
             )
         ).scalar_one_or_none()
 
@@ -190,11 +203,12 @@ def run_ingestion_job(job_id: str) -> None:
             existing.chunk_count = total_indexed
         else:
             doc = Document(
-                tenant_id=job.tenant_id,
+                title=Path(job.source_path_or_url).name,
                 source=job.source_path_or_url,
                 source_type=job.source_type or "unknown",
                 chunk_count=total_indexed,
                 ingestion_job_id=job_id,
+                user_id=job.user_id,
                 uploaded_by=job.submitted_by,
                 blob_path=job.blob_path,
             )

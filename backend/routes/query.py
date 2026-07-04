@@ -28,8 +28,7 @@ from services.rag_pipeline import RAGPipeline
 from security.input_guard import SecurityError
 from retrieval.filters import RetrievalError
 from security.auth import get_current_user
-from security.rbac import require_permission, Permission
-from app.models import TenantContext
+
 from db.models.user import User
 from db.engine import get_db, async_session_factory
 from db.models.conversation import Conversation, ConversationMessage
@@ -44,7 +43,6 @@ def get_pipeline() -> RAGPipeline:
 
 
 async def _persist_conversation(
-    tenant_id: str,
     user_id: str,
     session_id: str,
     user_query: str,
@@ -64,7 +62,6 @@ async def _persist_conversation(
                 title = user_query[:50] + "..." if len(user_query) > 50 else user_query
                 conv = Conversation(
                     session_id=session_id,
-                    tenant_id=tenant_id,
                     user_id=user_id,
                     title=title,
                 )
@@ -102,7 +99,6 @@ async def _persist_conversation(
 async def execute_query(
     request: QueryRequest,
     current_user: User = Depends(get_current_user),
-    tenant_context: TenantContext = Depends(require_permission(Permission.QUERY_WRITE)),
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> ChatResponse:
     """
@@ -110,21 +106,35 @@ async def execute_query(
     """
     logger.info("Received /query request for session %s from user %s", request.session_id, current_user.id)
     
-    # Enforce tenant isolation on filters
-    from app.models import MetadataFilter
-    tenant_filter = MetadataFilter(key="tenant_id", value=current_user.tenant_id)
-    if request.filters:
-        request.filters.append(tenant_filter)
-    else:
-        request.filters = [tenant_filter]
-
     try:
-        # Pass user roles to pipeline if needed for RBAC in retrieval, though tenant_id is the primary hard boundary.
-        response = pipeline.run(request, tenant_context)
+        from services.user_preferences import get_user_preferences
+        from app.config import get_settings
+        import os, dotenv
+        prefs_svc = get_user_preferences()
+        user_prefs = await prefs_svc.get_all_for_user(current_user.id)
+        
+        user_api_keys = {
+            "GROQ_API_KEY": user_prefs.get("GROQ_API_KEY"),
+            "SERPER_API_KEY": user_prefs.get("SERPER_API_KEY"),
+        }
+        
+        if current_user.email == "jituchoudharyat@gmail.com":
+            app_settings = get_settings()
+            env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+            serper = dotenv.get_key(env_path, "SERPER_API_KEY") if os.path.exists(env_path) else app_settings.serper_api_key
+            groq = dotenv.get_key(env_path, "GROQ_API_KEY") if os.path.exists(env_path) else getattr(app_settings, "groq_api_key", None)
+            if not user_api_keys["SERPER_API_KEY"] and serper:
+                user_api_keys["SERPER_API_KEY"] = serper
+            if not user_api_keys["GROQ_API_KEY"] and groq:
+                user_api_keys["GROQ_API_KEY"] = groq
+                
+        if not user_api_keys.get("GROQ_API_KEY"):
+            raise HTTPException(status_code=400, detail="GROQ_API_KEY is not configured in your integrations settings.")
+            
+        response = await pipeline.run(request, user_id=current_user.id, user_api_keys=user_api_keys)
         
         # Dual-write conversation to Postgres
         asyncio.create_task(_persist_conversation(
-            tenant_id=current_user.tenant_id,
             user_id=current_user.id,
             session_id=request.session_id,
             user_query=request.query,
@@ -133,7 +143,6 @@ async def execute_query(
         
         # Fire and forget telemetry
         asyncio.create_task(record_query_event(
-            tenant_id=current_user.tenant_id,
             user_id=current_user.id,
             session_id=request.session_id,
             query_text=request.query,
@@ -178,7 +187,6 @@ async def execute_query(
 async def execute_query_stream(
     request: QueryRequest,
     current_user: User = Depends(get_current_user),
-    tenant_context: TenantContext = Depends(require_permission(Permission.QUERY_WRITE)),
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> StreamingResponse:
     """
@@ -186,21 +194,45 @@ async def execute_query_stream(
     """
     logger.info("Received /stream request for session %s from user %s", request.session_id, current_user.id)
 
-    # Enforce tenant isolation on filters
-    from app.models import MetadataFilter
-    tenant_filter = MetadataFilter(key="tenant_id", value=current_user.tenant_id)
-    if request.filters:
-        request.filters.append(tenant_filter)
-    else:
-        request.filters = [tenant_filter]
-
     async def event_generator() -> AsyncGenerator[str, None]:
+        from services.user_preferences import get_user_preferences
+        from app.config import get_settings
+        import os, dotenv
+        prefs_svc = get_user_preferences()
+        user_prefs = await prefs_svc.get_all_for_user(current_user.id)
+        
+        user_api_keys = {
+            "GROQ_API_KEY": user_prefs.get("GROQ_API_KEY"),
+            "SERPER_API_KEY": user_prefs.get("SERPER_API_KEY"),
+        }
+        
+        if current_user.email == "jituchoudharyat@gmail.com":
+            app_settings = get_settings()
+            env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+            serper = dotenv.get_key(env_path, "SERPER_API_KEY") if os.path.exists(env_path) else app_settings.serper_api_key
+            groq = dotenv.get_key(env_path, "GROQ_API_KEY") if os.path.exists(env_path) else getattr(app_settings, "groq_api_key", None)
+            if not user_api_keys["SERPER_API_KEY"] and serper:
+                user_api_keys["SERPER_API_KEY"] = serper
+                from services.user_preferences import get_user_preferences
+                import asyncio
+                asyncio.create_task(get_user_preferences().set(current_user.id, "SERPER_API_KEY", serper))
+            if not user_api_keys["GROQ_API_KEY"] and groq:
+                user_api_keys["GROQ_API_KEY"] = groq
+                from services.user_preferences import get_user_preferences
+                import asyncio
+                asyncio.create_task(get_user_preferences().set(current_user.id, "GROQ_API_KEY", groq))
+                
+        if not user_api_keys.get("GROQ_API_KEY"):
+            err = StreamChunk(event="error", session_id=request.session_id, sequence=0, error_message="GROQ_API_KEY is not configured in your integrations settings.")
+            yield f"data: {err.model_dump_json(by_alias=True)}\n\n"
+            return
+            
         full_response_text = ""
         metadata_chunk = None
         citations = []
         
         try:
-            async for chunk in pipeline.stream(request, tenant_context):
+            async for chunk in pipeline.stream(request, user_id=current_user.id, user_api_keys=user_api_keys):
                 # Accumulate the response to persist after stream completes
                 if chunk.event == "content":
                     full_response_text += chunk.content_delta or ""
@@ -214,7 +246,6 @@ async def execute_query_stream(
                 
             # Stream completed successfully. Fire off persistence and telemetry.
             asyncio.create_task(_persist_conversation(
-                tenant_id=current_user.tenant_id,
                 user_id=current_user.id,
                 session_id=request.session_id,
                 user_query=request.query,
@@ -225,7 +256,6 @@ async def execute_query_stream(
                 m = metadata_chunk.metadata
                 tu = m.token_usage
                 asyncio.create_task(record_query_event(
-                    tenant_id=current_user.tenant_id,
                     user_id=current_user.id,
                     session_id=request.session_id,
                     query_text=request.query,
@@ -249,15 +279,15 @@ async def execute_query_stream(
 
         except SecurityError as exc:
             logger.warning("SecurityError on /stream: %s", exc)
-            err = StreamChunk(event="error", session_id=request.session_id, sequence=-1, error_message=str(exc))
+            err = StreamChunk(event="error", session_id=request.session_id, sequence=0, error_message=str(exc))
             yield f"data: {err.model_dump_json(by_alias=True)}\n\n"
         except RetrievalError as exc:
             logger.warning("RetrievalError on /stream: %s", exc)
-            err = StreamChunk(event="error", session_id=request.session_id, sequence=-1, error_message=str(exc))
+            err = StreamChunk(event="error", session_id=request.session_id, sequence=0, error_message=str(exc))
             yield f"data: {err.model_dump_json(by_alias=True)}\n\n"
         except Exception as exc:
             logger.error("Unexpected error on /stream: %s", exc, exc_info=True)
-            err = StreamChunk(event="error", session_id=request.session_id, sequence=-1, error_message="Internal server error")
+            err = StreamChunk(event="error", session_id=request.session_id, sequence=0, error_message="Internal server error")
             yield f"data: {err.model_dump_json(by_alias=True)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

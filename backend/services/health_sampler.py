@@ -70,7 +70,7 @@ async def _get_system_metrics() -> dict:
         return {}
 
 
-async def sample_once(tenant_id: str = "00000000-0000-0000-0000-000000000001") -> None:
+async def sample_once() -> None:
     """Take one health sample and persist it."""
     redis_ms = await _measure_redis_latency()
     qdrant_ms = await _measure_qdrant_latency()
@@ -93,7 +93,6 @@ async def sample_once(tenant_id: str = "00000000-0000-0000-0000-000000000001") -
     try:
         async with async_session_factory() as db:
             db.add(HealthSample(
-                tenant_id=tenant_id,
                 sampled_at=datetime.now(timezone.utc),
                 overall_status=overall,
                 cpu_percent=sys_metrics.get("cpu_percent"),

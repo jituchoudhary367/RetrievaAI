@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, EmailStr
 
 
 # --------------------------------------------------------------------------- #
@@ -65,14 +65,6 @@ class InternalModel(BaseModel):
         extra="forbid",
         arbitrary_types_allowed=True,
     )
-
-
-class TenantContext(InternalModel):
-    """Authenticated context scoped to a single request."""
-    
-    tenant_id: str = Field(..., min_length=1)
-    user_id: Optional[str] = Field(default=None)
-    roles: List[str] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -251,7 +243,6 @@ class RetrievedChunk(InternalModel):
 
     chunk_id: str
     document_id: str
-    tenant_id: str = Field(..., min_length=1)
     text: str
     source: RetrievalSource
     dense_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
@@ -413,7 +404,7 @@ class HealthResponse(APIModel):
 
 class DocumentMetadata(InternalModel):
     document_id: str = Field(default_factory=_new_id)
-    tenant_id: str = Field(..., min_length=1)
+    user_id: str = Field(default="")
     source_path: str
     source_type: str = Field(
         ..., description="One of: pdf, html, docx, image, text, md, csv, json"
@@ -429,7 +420,7 @@ class DocumentMetadata(InternalModel):
 class Chunk(InternalModel):
     chunk_id: str = Field(default_factory=_new_id)
     document_id: str
-    tenant_id: str = Field(..., min_length=1)
+    user_id: str = Field(default="")
     text: str
     chunk_index: int = Field(..., ge=0)
     token_count: Optional[int] = Field(default=None, ge=0)
@@ -442,3 +433,74 @@ class Chunk(InternalModel):
         if not v.strip():
             raise ValueError("chunk text must not be empty")
         return v
+
+
+# --------------------------------------------------------------------------- #
+# Auth models
+# --------------------------------------------------------------------------- #
+
+class SignupRequest(APIModel):
+    email: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=8)
+    tenant_name: str = Field(..., min_length=1)
+
+
+class LoginRequest(APIModel):
+    email: str
+    password: str = Field(..., min_length=8)
+
+
+class SignupResponse(BaseModel):
+    userId: str
+    email: str
+    message: str = "Signup successful. Please check your email to verify your account."
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+PermissionErrorAlias = type("PermissionErrorAlias", (Exception,), {})
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class RequestPasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    newPassword: str = Field(..., min_length=8)
+
+
+class InviteRequest(BaseModel):
+    email: EmailStr
+    role: str = Field(pattern="^(member|admin|viewer)$")
+
+
+class AcceptInviteRequest(APIModel):
+    token: str
+    password: str = Field(..., min_length=8)
+
+
+class RefreshRequest(APIModel):
+    refresh_token: str
+
+
+class AuthResponse(APIModel):
+    access_token: str
+    refresh_token: str
+    expires_in: int
+    user_id: str
+    roles: List[str]
+
+
+class InviteResponse(APIModel):
+    invite_link: str
+    expires_at: datetime

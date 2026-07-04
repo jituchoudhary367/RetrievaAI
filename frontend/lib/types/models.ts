@@ -21,6 +21,7 @@ export interface QueryRequest {
   useCache?: boolean;
   temperature?: number;
   maxTokens?: number;
+  forceWebSearch?: boolean;
 }
 
 export interface ChatMessage {
@@ -83,6 +84,9 @@ export interface ResponseMetadata {
   totalLatencyMs: number;
   tokenUsage?: TokenUsage;
   modelName?: string;
+  retrievedCount?: number;
+  rerankedCount?: number;
+  topK?: number;
 }
 
 export interface ChatResponse {
@@ -129,4 +133,71 @@ export interface HealthResponse {
   version: string;
   uptimeSeconds: number;
   components: ComponentHealth[];
+}
+
+export interface SignupRequest {
+  email: string;
+  password?: string;
+  tenantName: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password?: string;
+}
+
+export interface InviteRequest {
+  email: string;
+  role: string;
+}
+
+export interface AcceptInviteRequest {
+  token: string;
+  password?: string;
+}
+
+export interface RefreshRequest {
+  refreshToken: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  tenantId: string;
+  userId: string;
+  roles: string[];
+}
+
+export interface InviteResponse {
+  inviteLink: string;
+  expiresAt: string;
+}
+
+export interface SignupResponse {
+  tenantId: string;
+  userId: string;
+  email: string;
+  message: string;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+export interface ResendVerificationRequest {
+  email: string;
+}
+
+export interface RequestPasswordResetRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
 }

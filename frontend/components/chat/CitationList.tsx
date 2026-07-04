@@ -1,6 +1,6 @@
 import React from "react";
 import { Citation } from "../../lib/types/models";
-import { Badge } from "../ui/Badge";
+import { Badge } from "../ui/badge";
 
 export function CitationList({ citations }: { citations: Citation[] }) {
   if (!citations || citations.length === 0) return null;

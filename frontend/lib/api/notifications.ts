@@ -13,14 +13,14 @@ export interface NotificationRow {
 
 export const notificationsApi = {
   listNotifications: async (unreadOnly: boolean = false): Promise<NotificationRow[]> => {
-    return apiFetch<NotificationRow[]>(`/api/v1/notifications?unread_only=${unreadOnly}`, { method: "GET" });
+    return apiFetch<NotificationRow[]>(`/api/notifications?unread_only=${unreadOnly}`, { method: "GET" });
   },
 
   markAsRead: async (id: string): Promise<void> => {
-    return apiFetch<void>(`/api/v1/notifications/${id}/read`, { method: "POST" });
+    return apiFetch<void>(`/api/notifications/${id}/read`, { method: "POST" });
   },
 
   markAllAsRead: async (): Promise<void> => {
-    return apiFetch<void>("/api/v1/notifications/read-all", { method: "POST" });
+    return apiFetch<void>("/api/notifications/read-all", { method: "POST" });
   }
 };

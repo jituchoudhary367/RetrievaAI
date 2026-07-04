@@ -27,11 +27,10 @@ from db.base import Base, _new_uuid
 class RuntimeSetting(Base):
     __tablename__ = "runtime_settings"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "key", name="uq_runtime_settings_tenant_key"),
+        UniqueConstraint("key", name="uq_runtime_settings_key"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     key: Mapped[str] = mapped_column(String(100), nullable=False)
     value: Mapped[str] = mapped_column(Text, nullable=False, comment="JSON value")
     updated_by: Mapped[Optional[str]] = mapped_column(String(36))

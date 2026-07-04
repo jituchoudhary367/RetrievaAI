@@ -14,10 +14,10 @@ from typing import Optional
 from sqlalchemy import DateTime, Float, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from db.base import Base, TenantMixin, _new_uuid
+from db.base import Base, _new_uuid
 
 
-class HealthSample(Base, TenantMixin):
+class HealthSample(Base):
     __tablename__ = "health_samples"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)

@@ -42,7 +42,6 @@ class CodeSearchTool:
         query: str,
         repo_path: str,
         top_k: int = 10,
-        tenant_id: Optional[str] = None,
     ) -> List[Dict]:
         """
         Search *repo_path* for Python symbols and text matching *query*.
@@ -74,10 +73,8 @@ class CodeSearchTool:
         tool_id = "00000000-0000-0000-0001-000000000003"
 
         def _log(status: str, error: Optional[str] = None):
-            if tenant_id:
-                latency_ms = (time.perf_counter() - start_time) * 1000
-                asyncio.create_task(log_tool_execution(
-                    tenant_id=tenant_id,
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            asyncio.create_task(log_tool_execution(
                     tool_id=tool_id,
                     status=status,
                     latency_ms=latency_ms,

@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 
 async def record_query_event(
     *,
-    tenant_id: str,
-    user_id: Optional[str],
+
+    user_id: str,
     session_id: Optional[str],
     query_text: str,
     intent: Optional[str] = None,
@@ -62,7 +62,7 @@ async def record_query_event(
     try:
         async with async_session_factory() as db:
             event = QueryEvent(
-                tenant_id=tenant_id,
+
                 user_id=user_id,
                 session_id=session_id,
                 query_text=query_text,
@@ -100,8 +100,8 @@ async def record_query_event(
 
 async def record_search_event(
     *,
-    tenant_id: str,
-    user_id: Optional[str],
+
+    user_id: str,
     query_text: str,
     result_count: int,
     latency_ms: Optional[float] = None,
@@ -111,7 +111,7 @@ async def record_search_event(
     try:
         async with async_session_factory() as db:
             event = SearchEvent(
-                tenant_id=tenant_id,
+
                 user_id=user_id,
                 query_text=query_text,
                 result_count=result_count,
@@ -128,6 +128,7 @@ async def record_search_event(
 
 async def record_search_click(
     *,
+    user_id: str,
     search_event_id: str,
     chunk_id: str,
 ) -> None:
@@ -135,6 +136,7 @@ async def record_search_click(
     try:
         async with async_session_factory() as db:
             db.add(SearchClickEvent(
+                user_id=user_id,
                 search_event_id=search_event_id,
                 chunk_id=chunk_id,
             ))

@@ -17,7 +17,7 @@ import logging
 import math
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -99,8 +99,8 @@ async def list_documents(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentListResponse:
-    query = select(Document).where(Document.tenant_id == current_user.tenant_id)
-    count_q = select(func.count()).select_from(Document).where(Document.tenant_id == current_user.tenant_id)
+    query = select(Document).where(Document.user_id == current_user.id)
+    count_q = select(func.count()).select_from(Document).where(Document.user_id == current_user.id)
 
     if source_type:
         query = query.where(Document.source_type == source_type)
@@ -137,37 +137,36 @@ async def get_document(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentOut:
-    doc = await _get_doc_or_404(db, document_id, current_user.tenant_id)
+    doc = await _get_doc_or_404(db, document_id, current_user.id)
     return DocumentOut.from_orm(doc)
 
 
-@router.delete("/{document_id}", status_code=204)
+@router.delete("/{document_id}", status_code=200)
 async def delete_document(
     document_id: str,
     current_user: User = Depends(require_role("TENANT_ADMIN", "EDITOR")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    doc = await _get_doc_or_404(db, document_id, current_user.tenant_id)
+    doc = await _get_doc_or_404(db, document_id, current_user.id)
 
     # Remove from Qdrant
     try:
         from pipeline.indexer import Indexer  # noqa: PLC0415
         indexer = Indexer()
-        indexer.remove_document(document_id)
+        indexer.remove_document(document_id, user_id=current_user.id)
     except Exception as exc:
         logger.error("Qdrant/BM25 delete failed for doc %s: %s", document_id, exc)
 
     # Remove blob
     if doc.blob_path:
         try:
-            get_blob_storage().delete(doc.blob_path)
+            get_blob_storage().delete(doc.blob_path, user_id=current_user.id)
         except Exception as exc:
             logger.warning("Blob delete failed for doc %s: %s", document_id, exc)
 
     await db.delete(doc)
     import asyncio
     asyncio.create_task(log_action(
-        tenant_id=current_user.tenant_id,
         actor_user_id=current_user.id,
         action="document.delete",
         target=f"document:{document_id}",
@@ -182,7 +181,7 @@ async def get_document_chunks(
     db: AsyncSession = Depends(get_db),
 ) -> List[ChunkOut]:
     """Return chunks for a document from Qdrant."""
-    await _get_doc_or_404(db, document_id, current_user.tenant_id)
+    await _get_doc_or_404(db, document_id, current_user.id)
 
     try:
         from qdrant_client import QdrantClient  # noqa: PLC0415
@@ -192,7 +191,10 @@ async def get_document_chunks(
         client = QdrantClient(host=cfg.qdrant.host, port=cfg.qdrant.port)
         points, _ = client.scroll(
             collection_name=cfg.qdrant.collection_name,
-            scroll_filter=Filter(must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]),
+            scroll_filter=Filter(must=[
+                FieldCondition(key="document_id", match=MatchValue(value=document_id)),
+                FieldCondition(key="user_id", match=MatchValue(value=current_user.id))
+            ]),
             limit=200,
             with_payload=True,
             with_vectors=False,
@@ -217,14 +219,14 @@ async def download_document(
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """Stream the original file from blob storage."""
-    doc = await _get_doc_or_404(db, document_id, current_user.tenant_id)
+    doc = await _get_doc_or_404(db, document_id, current_user.id)
 
     if not doc.blob_path:
         raise HTTPException(status_code=404, detail="Original file not available (no blob)")
 
     blob = get_blob_storage()
     try:
-        data = blob.load(doc.blob_path)
+        data = blob.load(doc.blob_path, user_id=current_user.id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found in blob storage")
 
@@ -244,11 +246,11 @@ async def download_document(
 # ── Helpers ───────────────────────────────────────────────────────────────
 
 
-async def _get_doc_or_404(db: AsyncSession, document_id: str, tenant_id: str) -> Document:
+async def _get_doc_or_404(db: AsyncSession, document_id: str, user_id: str) -> Document:
     result = await db.execute(
         select(Document).where(
             Document.id == document_id,
-            Document.tenant_id == tenant_id,
+            Document.user_id == user_id
         )
     )
     doc = result.scalar_one_or_none()

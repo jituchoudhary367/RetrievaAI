@@ -5,9 +5,9 @@ import { useSearch } from "../../lib/hooks/useSearch";
 import { FilterBuilder } from "./FilterBuilder";
 import { ResultCard } from "./ResultCard";
 import { MetadataFilter } from "../../lib/types/models";
-import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
-import { Spinner } from "../ui/Spinner";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Spinner } from "../ui/spinner";
 import { Search } from "lucide-react";
 
 export function SearchForm() {

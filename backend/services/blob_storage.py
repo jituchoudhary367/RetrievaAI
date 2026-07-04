@@ -12,7 +12,7 @@ API:
   delete(path) -> None
 
 The root directory is configured via BLOB_ROOT_PATH (defaults to ./data/blobs).
-Files are organised as: <root>/<tenant_id>/<document_id>/<filename>
+Files are organised as: <root>/<document_id>/<filename>
 """
 
 from __future__ import annotations
@@ -42,15 +42,15 @@ class BlobStorage:
         self,
         data: Union[bytes, Path],
         filename: str,
-        tenant_id: str = "default",
         document_id: str = "unknown",
+        user_id: str = "unknown",
     ) -> str:
         """
         Save *data* (bytes or a source file path) to blob storage.
 
         Returns the relative path string suitable for storing in the DB.
         """
-        dest_dir = self._root / tenant_id / document_id
+        dest_dir = self._root / f"users/{user_id}/{document_id}"
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / filename
 
@@ -63,15 +63,26 @@ class BlobStorage:
         logger.debug("BlobStorage.save: %s → %s", filename, rel_path)
         return rel_path
 
-    def load(self, path: str) -> bytes:
+    def load(self, path: str, user_id: str) -> bytes:
         """Load and return the bytes for the blob at *path*."""
         full = self._root / path
+        if f"users/{user_id}/" not in path:
+            # Fallback for existing files before isolation
+            if not path.startswith("users/"):
+                pass
+            else:
+                raise PermissionError("Access denied")
         if not full.exists():
             raise FileNotFoundError(f"Blob not found: {path}")
         return full.read_bytes()
 
-    def delete(self, path: str) -> None:
+    def delete(self, path: str, user_id: str) -> None:
         """Delete the blob at *path*. Silently ignores missing files."""
+        if f"users/{user_id}/" not in path:
+            if not path.startswith("users/"):
+                pass
+            else:
+                raise PermissionError("Access denied")
         full = self._root / path
         try:
             full.unlink(missing_ok=True)

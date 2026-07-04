@@ -16,10 +16,10 @@ from typing import Optional
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from db.base import Base, TenantMixin, _new_uuid
+from db.base import Base, _new_uuid
 
 
-class Tool(Base, TenantMixin):
+class Tool(Base):
     __tablename__ = "tools"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
@@ -48,7 +48,6 @@ class ToolExecution(Base):
         String(36), ForeignKey("tools.id", ondelete="CASCADE"),
         nullable=False, index=True
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
     # status: success | failure
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     latency_ms: Mapped[Optional[float]] = mapped_column(Float)

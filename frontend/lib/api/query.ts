@@ -1,6 +1,7 @@
 import { ChatResponse, QueryRequest, StreamChunk } from "../types/models";
 import { apiBaseUrl, ApiError, apiFetch } from "./client";
 import { parseSseStream } from "../utils/sse";
+import { getAuthToken } from "../auth/session";
 
 export async function postQuery(request: QueryRequest): Promise<ChatResponse> {
   const req = { ...request, stream: false };
@@ -18,11 +19,17 @@ export async function streamQuery(
   const req = { ...request, stream: true };
   const url = `${apiBaseUrl}/api/stream`;
 
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(req),
     signal,
   });

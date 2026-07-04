@@ -54,7 +54,7 @@ class SemanticCache:
     # Public API
     # ------------------------------------------------------------------
 
-    def get(self, tenant_id: str, query: str) -> Optional[ChatResponse]:
+    def get(self, query: str, user_id: str) -> Optional[ChatResponse]:
         """
         Return a cached ``ChatResponse`` for *query*, or ``None`` on miss.
 
@@ -69,8 +69,7 @@ class SemanticCache:
             if query_emb is None:
                 return None
 
-            # Scan all embedding keys for this tenant
-            base_prefix = f"{tenant_id}:{self._cfg.cache_key_prefix}"
+            base_prefix = f"{user_id}:{self._cfg.cache_key_prefix}"
             prefix = base_prefix + "emb:"
             cursor = 0
             best_key: Optional[str] = None
@@ -114,7 +113,7 @@ class SemanticCache:
             logger.warning("SemanticCache.get failed: %s", exc)
             return None
 
-    def set(self, tenant_id: str, query: str, response: ChatResponse) -> None:
+    def set(self, query: str, response: ChatResponse, user_id: str) -> None:
         """
         Store *response* in the cache, keyed by the embedding of *query*.
         """
@@ -129,7 +128,7 @@ class SemanticCache:
 
             import hashlib  # noqa: PLC0415
             cache_id = hashlib.sha256(query.encode()).hexdigest()[:16]
-            base_prefix = f"{tenant_id}:{self._cfg.cache_key_prefix}"
+            base_prefix = f"{user_id}:{self._cfg.cache_key_prefix}"
             emb_key = base_prefix + "emb:" + cache_id
             resp_key = base_prefix + "resp:" + cache_id
             ttl = self._cfg.cache_ttl_seconds

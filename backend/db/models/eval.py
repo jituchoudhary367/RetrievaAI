@@ -19,10 +19,10 @@ from typing import Optional
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from db.base import Base, TenantMixin, _new_uuid
+from db.base import Base, _new_uuid
 
 
-class EvalQuery(Base, TenantMixin):
+class EvalQuery(Base):
     """One entry in the labeled ground-truth set."""
     __tablename__ = "eval_queries"
 
@@ -35,7 +35,7 @@ class EvalQuery(Base, TenantMixin):
     )
 
 
-class EvalRun(Base, TenantMixin):
+class EvalRun(Base):
     """
     Aggregate metrics for one complete replay of all EvalQuery rows.
 

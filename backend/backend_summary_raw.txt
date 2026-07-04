@@ -1,0 +1,1063 @@
+File: run.py
+run.py
+
+Local development entry point.
+Starts the Uvicorn ASGI server with hot-reload enabled.
+----------------------------------------
+File: test_db.py
+No docstring provided.
+----------------------------------------
+File: test_dns.py
+No docstring provided.
+----------------------------------------
+File: test_dns2.py
+No docstring provided.
+----------------------------------------
+File: agents\adaptive_router.py
+agents/adaptive_router.py
+
+Pure decision function — no I/O, no external dependencies.
+
+Maps a ``QueryIntent`` (and optional CRAG grading results) to one of five
+routing targets:
+  "local_rag"  — answer from the local vector+BM25 index
+  "web"        — answer requires live web search
+  "hybrid"     — combine local RAG with web search results
+  "tool"       — use a specialised tool (code search, calculator, etc.)
+  "agent"      — hand off to a multi-step agent loop
+----------------------------------------
+File: agents\crag.py
+agents/crag.py
+
+Corrective RAG (CRAG) agent.
+
+Implements the grade → correct loop:
+  1. Grade retrieved chunks via ``DocumentGrader``.
+  2. If grades are above threshold → return as-is.
+  3. If grades are below threshold → fetch supplementary context from
+     web (``WebSearchTool``) or code (``CodeSearchTool``) based on settings.
+  4. Repeat up to ``CragSettings.max_correction_retries`` times.
+
+Web/code search results are converted to synthetic ``RetrievedChunk`` objects
+so the rest of the pipeline can treat them uniformly.
+----------------------------------------
+File: agents\__init__.py
+No docstring provided.
+----------------------------------------
+File: app\config.py
+app/config.py
+
+Centralized configuration management for the RAG application.
+
+This is the FOUNDATION module — every other module (services, retrieval,
+agents, pipeline, routes) must read configuration from here. Nothing else
+in the codebase should hardcode environment-dependent values (hosts,
+ports, model names, thresholds, feature flags, etc.).
+
+Configuration precedence (highest first):
+    1. Explicit process environment variables
+    2. Values in a `.env` file at the project root
+    3. Field defaults declared below
+
+Usage:
+    from app.config import get_settings
+    settings = get_settings()
+    redis_url = settings.redis.url
+    if settings.features.enable_crag:
+        ...
+----------------------------------------
+File: app\main.py
+app/main.py
+
+FastAPI application factory with full lifespan management.
+
+Lifespan:
+  1. Create all DB tables (SQLAlchemy create_all — idempotent)
+  2. Run DB seed (default tenant + 3 built-in tools — idempotent)
+  3. Launch background health sampler task
+  4. Yield (app is live)
+  5. Cancel background tasks on shutdown
+----------------------------------------
+File: app\models.py
+app/models.py
+
+Shared request/response schemas for the RAG application.
+
+Every route, service, and tool that crosses an API boundary (HTTP request,
+HTTP response, SSE stream chunk, or inter-service call) should import its
+data shape from here rather than redefining ad-hoc dicts or local classes.
+This keeps the contract between `routes/`, `services/`, and `retrieval/`
+explicit, typed, and validated in one place.
+
+Conventions:
+    - All public API models inherit from `APIModel` (camelCase aliases,
+      `from_attributes` enabled so they can be built from ORM-like objects).
+    - All internal-only models inherit from `InternalModel` (no aliasing,
+      used purely between modules and never serialized directly to a client).
+    - Enums are `str` subclasses so they serialize cleanly to JSON and are
+      directly comparable to plain strings.
+----------------------------------------
+File: app\__init__.py
+No docstring provided.
+----------------------------------------
+File: db\base.py
+db/base.py
+
+SQLAlchemy declarative base with timestamp and tenant-id mixins.
+
+All ORM models inherit from `Base` and optionally from `TimestampMixin`
+and/or `TenantMixin` for consistent column layouts.
+----------------------------------------
+File: db\engine.py
+db/engine.py
+
+Async SQLAlchemy engine, session factory, and FastAPI dependency.
+
+Usage (routes/services):
+    from db.engine import get_db
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    async def my_handler(db: AsyncSession = Depends(get_db)):
+        ...
+----------------------------------------
+File: db\repository.py
+db/repository.py
+
+Minimal async CRUD methods for auth and tenancy integration.
+----------------------------------------
+File: db\seed.py
+db/seed.py
+
+Seeds the database with initial data that must exist before the app
+can serve real traffic:
+  1. Default tenant ("default")
+  2. Three built-in Tool rows (vector_search, web_search, code_search)
+
+Called once on startup in app/main.py (idempotent — skips if already seeded).
+----------------------------------------
+File: db\__init__.py
+db/__init__.py
+
+Database package — exports the session factory, Base, and all ORM models
+so that other modules only need to import from `db`.
+----------------------------------------
+File: db\models\audit.py
+db/models/audit.py
+
+AuditLogEntry and Notification ORM models (§1.9).
+
+AuditLogEntry — written by every admin-level mutation (invite sent,
+                setting changed, API key generated, document deleted, etc.)
+Notification  — written when an ingestion job completes/fails, an invite
+                is accepted, or an eval run finishes.  Polled, not pushed.
+----------------------------------------
+File: db\models\auth_token.py
+db/models/auth_token.py
+
+AuthToken ORM model for email verification and password resets.
+----------------------------------------
+File: db\models\conversation.py
+db/models/conversation.py
+
+Postgres-persisted conversations (§1.10 upgrade from IndexedDB-only).
+
+Conversation        — one row per chat session.
+ConversationMessage — one row per message (user or assistant turn).
+
+Redis still serves as the hot cache for active sessions.
+Write-through from ConversationStore ensures messages survive Redis TTL
+and work across devices/browsers.
+----------------------------------------
+File: db\models\document.py
+db/models/document.py
+
+Document catalog table — a fast, queryable Postgres summary over Qdrant (§1.3).
+
+This table is written/updated by the ingestion task at indexing time.
+Qdrant remains the source of truth for vectors/chunks.
+This table is a derived index over Qdrant, rebuildable if it ever drifts.
+
+quality_score is computed at ingestion time (real, deterministic formula):
+  Start at 1.0, subtract penalties for:
+  - Each extraction warning
+  - Average OCR confidence below threshold
+  - Fraction of chunks outside [min_chunk_size, max_chunk_size]
+  Clamped to [0, 1].
+----------------------------------------
+File: db\models\eval.py
+db/models/eval.py
+
+Retrieval-quality offline evaluation models (§1.6).
+
+EvalQuery — admin-curated "golden set" of labeled queries.
+EvalRun   — one row per periodic eval pass; stores aggregate metrics as JSON.
+
+The Analytics page's Retrieval Performance panel shows the last EvalRun,
+labeled with its timestamp.  This is NOT a live metric — it's a real,
+standard offline-eval pattern and the UI must say so.
+----------------------------------------
+File: db\models\health.py
+db/models/health.py
+
+HealthSample — periodic system health snapshots for the Analytics system-health panel.
+
+Written by services/health_sampler.py on a background schedule.
+----------------------------------------
+File: db\models\ingestion.py
+db/models/ingestion.py
+
+Async ingestion job tracking (§1.2).
+
+IngestionJob    — one row per ingestion task submitted to the RQ worker.
+IngestionJobLog — one row per pipeline stage transition (extract→clean→…→index).
+                  Also published to Redis Pub/Sub for SSE streaming.
+----------------------------------------
+File: db\models\invite.py
+db/models/invite.py
+
+Invite ORM model for team invitations.
+----------------------------------------
+File: db\models\security.py
+db/models/security.py
+
+ApiKey ORM model (§1.8).
+
+ApiKey — powers Security Settings > API Key panel.
+         Stores only the hashed key; the raw key is shown to the user
+         exactly once on creation and never stored.
+----------------------------------------
+File: db\models\settings.py
+db/models/settings.py
+
+RuntimeSetting — dynamic, tenant-scoped settings persisted in Postgres (§1.7).
+
+Covers everything in the Settings page that genuinely has no existing
+per-tenant override mechanism: max_tokens, timeout, max_file_size,
+chunk_size, overlap, embedding_model, vector_db selection, backup_frequency,
+retention, cache_ttl, max_concurrent_jobs, memory_limit, etc.
+
+Rate Limit and Concurrent Requests are NOT here — they're in TenantConfig.
+
+value is stored as a JSON string so it can hold any scalar or object.
+----------------------------------------
+File: db\models\telemetry.py
+db/models/telemetry.py
+
+Telemetry ORM models — written fire-and-forget after every query/search (§1.1).
+
+QueryEvent       — one row per /api/query call.
+QueryEventCitation — child table; one row per citation returned.
+SearchEvent      — one row per /api/search call.
+SearchClickEvent — one row when the user clicks a search result card.
+----------------------------------------
+File: db\models\tenant.py
+db/models/tenant.py
+
+Tenant and TenantConfig ORM models.
+
+Tenant  — one row per organization (multi-tenancy).
+TenantConfig — per-tenant overrides for rate limits, concurrent requests, and
+               other settings that the wiring prompt explicitly assigns to
+               TenantConfig (not RuntimeSetting) per §1.7.
+----------------------------------------
+File: db\models\tool.py
+db/models/tool.py
+
+Tool registry and execution log (§1.5).
+
+Tool          — seeded with 3 real tools on startup; metadata-only for new tools.
+ToolExecution — one row per real invocation from agents/crag.py or tools/*.py.
+                Drives usage counts, sparklines, success rate, recent executions.
+----------------------------------------
+File: db\models\user.py
+db/models/user.py
+
+User and UserSession ORM models.
+
+UserSession enables per-device session revocation (§1.8) via a `jti` claim
+on the JWT, independently of the coarser `token_version` mechanism on User.
+User.totp_secret enables minimal TOTP 2FA (§1.8).
+----------------------------------------
+File: db\models\__init__.py
+db/models/__init__.py
+
+Imports every ORM model so that SQLAlchemy's metadata knows about all tables
+when `Base.metadata.create_all()` is called on startup.
+----------------------------------------
+File: pipeline\chunker.py
+pipeline/chunker.py
+
+Splits pre-processed document text into overlapping ``Chunk`` objects ready
+for embedding and indexing.
+
+Four strategies, all subclassing ``BaseChunker``:
+  RecursiveChunker  — split on progressively finer separators
+  MarkdownChunker   — split on Markdown headings then fall back to recursive
+  ASTChunker        — split Python source on top-level function/class nodes
+  SemanticChunker   — group sentences by embedding similarity (requires
+                      sentence-transformers; graceful no-op fallback)
+
+``Chunker`` is the public facade: it selects the concrete implementation
+based on ``ChunkingSettings.strategy`` or the caller-supplied ``source_type``.
+----------------------------------------
+File: pipeline\deduplicator.py
+pipeline/deduplicator.py
+
+Deduplication layer applied after preprocessing, before chunking.
+
+Two strategies:
+  1. Exact deduplication  — SHA-256 hash of normalised text.
+  2. Near-duplicate detection — pure-Python 64-bit SimHash + Hamming distance
+     threshold (no third-party dependency; O(n) fingerprinting per document).
+
+The public ``compute_content_hash`` function is also consumed by
+``pipeline/ingest.py`` to build the idempotency manifest that prevents
+re-ingesting unchanged files.
+----------------------------------------
+File: pipeline\embedder.py
+pipeline/embedder.py
+
+Converts text chunks into dense embedding vectors.
+
+Provider backends (all optional; lazily imported):
+  openai              → EmbeddingProvider.OPENAI
+  sentence-transformers → EmbeddingProvider.HUGGINGFACE
+  cohere              → EmbeddingProvider.COHERE
+
+Features:
+  - Pluggable embedding cache (InMemoryEmbeddingCache default,
+    RedisEmbeddingCache when Redis is available) keyed by SHA-256 of
+    (model_name, text).
+  - Exponential-backoff retry up to EmbeddingSettings.max_retries.
+  - Batch processing at EmbeddingSettings.batch_size.
+  - Optional L2-normalisation of output vectors.
+----------------------------------------
+File: pipeline\indexer.py
+pipeline/indexer.py
+
+Dual-index writer: keeps a dense Qdrant collection and a sparse BM25 index
+in sync for every write operation.
+
+Exports:
+  QdrantIndexer  — upserts/deletes chunks in Qdrant
+  BM25Index      — self-contained Okapi BM25 implementation persisted via
+                   pickle; reusable standalone by retrieval/hybrid_retriever.py
+  Indexer        — facade that calls both, persisting BM25 after every write
+  IndexingError  — domain exception
+
+BM25Index is intentionally a top-level public class (not nested inside Indexer)
+so that HybridRetriever can load it independently from the same file path.
+----------------------------------------
+File: pipeline\ingest.py
+pipeline/ingest.py
+
+Orchestrates the full offline ingestion pipeline:
+  Extract → Preprocess → Deduplicate → Chunk → Embed → Index
+
+Entry point: ``IngestionPipeline.ingest_path(path, glob, force)``
+
+Key features:
+  - Auto-discovers files under a directory using the provided glob pattern.
+  - Dispatches each file to the first registered extractor whose
+    ``supports()`` returns True.  Missing optional extractor dependencies
+    produce a warning, not a crash.
+  - Maintains a JSON idempotency manifest (keyed by content hash) so
+    unchanged files are skipped on re-ingestion unless ``force=True``.
+  - One file's failure is caught and recorded in ``FileIngestResult``; it
+    never aborts the batch.
+----------------------------------------
+File: pipeline\preprocessor.py
+pipeline/preprocessor.py
+
+Cleans raw extracted text before it enters the chunking stage.
+
+Responsibilities:
+  - HTML-entity unescaping (&amp; → &, etc.)
+  - Residual HTML tag stripping (handles cases where an extractor left markup)
+  - Unicode NFKC normalization (decomposed characters → composed forms)
+  - Control-character stripping (null bytes, form feeds, etc.)
+  - Repeated-line (running header/footer) removal via configurable frequency
+    threshold
+  - Whitespace collapse (consecutive blank lines → one blank line; trailing
+    spaces stripped)
+
+No third-party dependencies — stdlib only.
+----------------------------------------
+File: pipeline\__init__.py
+No docstring provided.
+----------------------------------------
+File: pipeline\extractors\docx_extractor.py
+pipeline/extractors/docx_extractor.py
+
+Extracts text, tables, headers/footers, embedded images, and core-property
+metadata from Microsoft Word (.docx) documents.
+
+Fits into the ingestion pipeline as the extractor registered for .docx files.
+
+Dependency:
+  python-docx  → required; lazily imported so the module is always importable
+----------------------------------------
+File: pipeline\extractors\html_extractor.py
+pipeline/extractors/html_extractor.py
+
+Extracts clean article text, tables, and rich metadata from HTML documents
+and raw HTML strings.
+
+Fits into the ingestion pipeline as the extractor registered for .html and
+.htm files.  `pipeline/ingest.py` dispatches to this class via the standard
+`BaseExtractor` interface; downstream pipeline stages receive only the
+normalized `ExtractionResult`.
+
+Dependency chain (all optional):
+  beautifulsoup4  → DOM parsing and fallback boilerplate removal
+  lxml            → fast HTML parser backend for BeautifulSoup
+  trafilatura     → superior boilerplate stripping (preferred when installed)
+----------------------------------------
+File: pipeline\extractors\image_extractor.py
+pipeline/extractors/image_extractor.py
+
+Extracts text from image files via OCR (pytesseract + Pillow) and records
+per-word confidence, image dimensions, and colour mode as metadata.
+
+Fits into the ingestion pipeline as the extractor registered for common image
+formats (.png, .jpg, .jpeg, .tiff, .bmp, .gif, .webp).
+
+Dependencies (both optional — module is always importable):
+  Pillow       → image loading and basic property inspection
+  pytesseract  → Tesseract OCR engine wrapper
+----------------------------------------
+File: pipeline\extractors\pdf_extractor.py
+pipeline/extractors/pdf_extractor.py
+
+Extracts text, tables, and metadata from PDF files.
+
+Fits into the ingestion pipeline as the extractor registered for .pdf files.
+`pipeline/ingest.py` calls `PdfExtractor().extract(path)` which returns a
+normalized `ExtractionResult` that the rest of the pipeline (preprocessor,
+deduplicator, chunker) consumes without needing to know the source format.
+
+Dependency chain (all optional — module is importable without any of them):
+  pypdf          → primary text extraction
+  pdfplumber     → table extraction
+  pdf2image      → convert PDF pages to PIL images for OCR
+  pytesseract    → OCR on the PIL images
+----------------------------------------
+File: pipeline\extractors\text_extractor.py
+pipeline/extractors/text_extractor.py
+
+Extracts plain-text-like documents: .txt, .md, .markdown, .csv, .tsv,
+.json, .jsonl.
+
+This module is implemented FIRST in the ingestion pipeline because it has
+no third-party parsing dependency (unlike pdf_extractor / docx_extractor /
+image_extractor) and therefore doubles as the place where the shared
+extractor interface lives:
+
+    - `BaseExtractor`     — common ABC every extractor implements
+    - `ExtractionResult`  — normalized output every extractor returns
+    - `ExtractionError`   — common failure type
+
+`pipeline/ingest.py` dispatches an input file to the first registered
+extractor whose `supports()` returns True, then works only with
+`ExtractionResult` from that point on — it never needs to know which
+concrete extractor produced it.
+----------------------------------------
+File: pipeline\extractors\__init__.py
+No docstring provided.
+----------------------------------------
+File: prompts\grading.py
+prompts/grading.py
+
+Relevance grading prompt and response parser for the CRAG document grader.
+
+``render_relevance_grading_prompt`` produces a prompt whose expected LLM
+output maps cleanly onto ``RelevanceGrade`` (good / bad / need_web) plus a
+0–1 numeric confidence score.
+
+``parse_grading_response`` turns the raw LLM string into
+``(RelevanceGrade, float)`` for ``services/document_grader.py``.
+----------------------------------------
+File: prompts\templates.py
+prompts/templates.py
+
+Module-level prompt-rendering functions for every LLM interaction in the
+RAG pipeline.
+
+All functions return a fully-rendered string ready to pass to the LLM.
+No external templating library is required — standard Python f-strings are
+sufficient and avoid adding a dependency.
+
+Functions exported (exact names required by the symbol contract):
+  render_system_prompt()
+  render_qa_prompt(query, context)
+  render_rag_prompt(query, context, citations_required)
+  render_summarization_prompt(text)
+  render_query_rewrite_prompt(query, history)
+  render_judge_prompt(question, answer, context)
+  render_decomposition_prompt(query)          ← used by query_decomposer.py
+----------------------------------------
+File: prompts\__init__.py
+prompts/__init__.py
+
+Flat re-export surface for the prompts package.
+
+Allows callers to write:
+    from prompts import render_rag_prompt
+instead of:
+    from prompts.templates import render_rag_prompt
+----------------------------------------
+File: retrieval\filters.py
+retrieval/filters.py
+
+Translates ``app.models.MetadataFilter`` objects into Qdrant filter trees.
+
+Supports all operators defined on ``MetadataFilter``:
+  eq, ne, gt, gte, lt, lte, in, not_in, contains
+
+``qdrant_client`` is imported lazily so this module is importable even if the
+library is not installed (the function itself will raise an ImportError with a
+clear pip-install hint if called without the dependency).
+----------------------------------------
+File: retrieval\hybrid_retriever.py
+retrieval/hybrid_retriever.py
+
+Hybrid retriever combining dense (Qdrant) and sparse (BM25) search via
+Reciprocal Rank Fusion (RRF).
+
+Pipeline:
+  1. Embed query → dense vector via Embedder.embed_texts([query])[0]
+  2. Dense search → top_k_dense hits from QdrantIndexer
+  3. Sparse search → top_k_sparse hits from BM25Index
+  4. Fuse ranked lists with RRF using rrf_k and hybrid_alpha weighting
+  5. Truncate to top_k_final (or caller-supplied top_k)
+
+BM25Index and bm25_index_path are resolved from settings — the same path
+used by pipeline/indexer.py so both read/write the same persisted file.
+----------------------------------------
+File: retrieval\reranker.py
+retrieval/reranker.py
+
+Cross-encoder reranker applied after hybrid retrieval.
+
+Gated by ``RetrievalSettings.rerank_enabled``:
+  - When enabled and ``sentence-transformers`` is installed, runs the
+    configured cross-encoder model to produce a relevance score for each
+    (query, chunk) pair.
+  - When disabled *or* the library is missing, returns the input list
+    unchanged (no-op with a debug log).
+
+Each returned ``RetrievedChunk`` has ``.rerank_score`` set.
+----------------------------------------
+File: retrieval\__init__.py
+No docstring provided.
+----------------------------------------
+File: routes\analytics.py
+routes/analytics.py
+
+Analytics dashboard endpoints.
+
+Queries the telemetry and document tables to provide aggregate metrics
+for the frontend dashboards.
+----------------------------------------
+File: routes\auth.py
+routes/auth.py
+
+Authentication and user management endpoints.
+----------------------------------------
+File: routes\conversations.py
+routes/conversations.py
+
+Conversations API — fetching persisted chat history (§1.10).
+
+Endpoints:
+  GET /api/conversations
+  GET /api/conversations/{id}/messages
+----------------------------------------
+File: routes\documents.py
+routes/documents.py
+
+Document catalog API — backed by the Postgres `documents` table (§1.3).
+
+Endpoints:
+  GET    /api/documents                      — paginated list
+  GET    /api/documents/{id}                 — single document metadata
+  DELETE /api/documents/{id}                 — remove from Qdrant + BM25 + Postgres
+  GET    /api/documents/{id}/chunks          — retrieve chunk list from Qdrant
+  GET    /api/documents/{id}/download        — stream original file from blob storage
+----------------------------------------
+File: routes\health.py
+routes/health.py
+
+FastAPI router for Liveness and Readiness probes.
+
+Endpoints:
+  GET /health/live  — Service liveness (always 200 OK if process is up)
+  GET /health/ready — Service readiness (verifies Redis, Qdrant, LLM API)
+----------------------------------------
+File: routes\ingest.py
+routes/ingest.py
+
+FastAPI router for triggering the ingestion pipeline over HTTP.
+
+Endpoints:
+  POST /api/v1/ingest  — Ingest files from a specified directory
+  POST /api/v1/ingest/status — (Optional) check status if ingestion were async
+
+Currently ingestion is blocking. In a heavy production system this would
+dispatch to a Celery worker.
+----------------------------------------
+File: routes\ingestion.py
+routes/ingestion.py
+
+Async ingestion routes (§1.2).
+
+Replaces the old blocking POST /api/ingest.
+
+Endpoints:
+  GET    /api/ingestion/jobs
+  POST   /api/ingestion/jobs
+  GET    /api/ingestion/jobs/{id}
+  DELETE /api/ingestion/jobs/{id}
+  POST   /api/ingestion/jobs/{id}/cancel
+  GET    /api/ingestion/jobs/{id}/stream  (SSE logs via Redis Pub/Sub)
+----------------------------------------
+File: routes\notifications.py
+routes/notifications.py
+
+Notifications API — for the frontend notification bell (§1.9).
+
+Endpoints:
+  GET  /api/notifications
+  POST /api/notifications/{id}/read
+----------------------------------------
+File: routes\oauth.py
+No docstring provided.
+----------------------------------------
+File: routes\query.py
+routes/query.py
+
+FastAPI router for retrieval and generation endpoints.
+
+Endpoints:
+  POST /api/v1/query   — Standard non-streaming RAG query
+  POST /api/v1/stream  — Streaming RAG query (Server-Sent Events)
+
+Uses the ``RAGPipeline`` facade to execute the pipeline.
+Dual-writes chat history to Postgres Conversation tables (§1.10).
+----------------------------------------
+File: routes\search.py
+routes/search.py
+
+Search endpoints (§1.1):
+  POST /api/search (vector/hybrid document search)
+  POST /api/search/web (Tavily external search)
+  POST /api/search/code (GitHub external search)
+  POST /api/search/events/click (telemetry)
+----------------------------------------
+File: routes\settings.py
+routes/settings.py
+
+Settings endpoints (§1.7, §1.8, §1.9).
+
+Endpoints:
+  GET    /api/settings/{category}  (reads from RuntimeSettingsService)
+  PUT    /api/settings/{category}  (writes to RuntimeSettingsService)
+  GET    /api/settings/api-keys
+  POST   /api/settings/api-keys
+  DELETE /api/settings/api-keys/{id}
+  GET    /api/settings/sessions
+  DELETE /api/settings/sessions/{id}
+  GET    /api/settings/audit-log
+----------------------------------------
+File: routes\tools.py
+routes/tools.py
+
+Tool registry endpoints (§1.5).
+
+Endpoints:
+  GET    /api/tools
+  GET    /api/tools/{id}
+  GET    /api/tools/{id}/executions
+  POST   /api/tools                 (Register metadata-only tools)
+----------------------------------------
+File: routes\__init__.py
+routes/__init__.py
+
+Flat export surface for FastAPI routers.
+----------------------------------------
+File: security\auth.py
+security/auth.py
+
+JWT token creation, validation, and FastAPI dependencies for auth + RBAC.
+
+Key patterns:
+  - `get_current_user()`  — validates Bearer token, checks jti against
+    UserSession table, returns the User row. Used as a FastAPI dependency.
+  - `require_role(*roles)` — dependency factory that wraps get_current_user
+    and adds a role check; use with `Depends(require_role("TENANT_ADMIN"))`.
+  - `create_access_token()` / `create_refresh_token()` — issue JWTs with
+    `jti` (session-level) and `token_version` (kill-all) claims.
+
+JTI vs token_version (§1.8):
+  - `token_version` on the User row: incremented by password reset — kills
+    every session at once.
+  - `jti` on UserSession: checked individually — lets one device be revoked
+    without affecting others.
+----------------------------------------
+File: security\content_filter.py
+security/content_filter.py
+
+Keyword/category-based content moderation for generated text.
+
+Checks for predefined categories of harmful content (violence, hate speech,
+adult content, self-harm, illegal activity, PII leakage) and returns a
+``ContentFilterResult`` indicating whether the text is safe.
+
+No ML model is required — rule-based pattern matching keeps this module
+importable and fast with zero optional dependencies.
+----------------------------------------
+File: security\input_guard.py
+security/input_guard.py
+
+Input validation and sanitisation guard applied before retrieval.
+
+Checks (in order):
+  1. Query length against ``SecuritySettings.max_query_length``
+  2. PII pattern detection (toggle via ``pii_detection_enabled``)
+     - Email addresses
+     - US/international phone numbers
+     - US Social Security Numbers
+     - Credit card numbers (Luhn-like pattern)
+  3. Prompt-injection heuristic scoring against ``prompt_injection_threshold``
+
+Raises ``SecurityError`` on any violation.
+----------------------------------------
+File: security\output_guard.py
+security/output_guard.py
+
+Validates generated answers before returning them to the caller.
+
+Checks:
+  1. Every ``Citation`` has a non-empty ``chunk_id``, ``document_id``, and a
+     plausible ``score`` in [0, 1].
+  2. When citations are present, answer sentences that contain no backed claim
+     are flagged as ``unverified_claims``.
+
+Returns an ``OutputGuardResult`` — never raises, so a buggy guard doesn't
+block the API response.
+----------------------------------------
+File: security\passwords.py
+security/passwords.py
+
+Password hashing and verification using passlib.
+----------------------------------------
+File: security\rbac.py
+security/rbac.py
+
+Role-Based Access Control (RBAC) definitions and dependencies.
+Builds on top of `TenantContext.roles` extracted from the JWT.
+----------------------------------------
+File: security\__init__.py
+No docstring provided.
+----------------------------------------
+File: services\audit.py
+services/audit.py
+
+AuditLogEntry writer (§1.9).
+
+Every admin-level mutation calls `log_action()` — it's fire-and-forget
+so it never blocks the HTTP response.
+
+Usage:
+    from services.audit import log_action
+    await log_action(
+        tenant_id=user.tenant_id,
+        actor_user_id=user.id,
+        action="document.delete",
+        target=f"document:{doc_id}",
+        detail={"title": doc.title},
+    )
+----------------------------------------
+File: services\auth_service.py
+services/auth_service.py
+
+Handles login, signup, and invites, delegating to the Repositories and Token generators.
+----------------------------------------
+File: services\blob_storage.py
+services/blob_storage.py
+
+Local-filesystem blob storage abstraction (§1.4).
+
+Saves original ingested files so that Preview and Download work against
+real bytes, not discarded post-extraction text.
+
+API:
+  save(source_path_or_bytes, filename) -> str   (returns the stored path)
+  load(path) -> bytes
+  delete(path) -> None
+
+The root directory is configured via BLOB_ROOT_PATH (defaults to ./data/blobs).
+Files are organised as: <root>/<tenant_id>/<document_id>/<filename>
+----------------------------------------
+File: services\conversation.py
+services/conversation.py
+
+Redis-backed conversation history store with sliding window and optional
+LLM-based summarisation.
+
+Features:
+  - Sliding window of ``max_history_turns`` turns (each turn = 2 messages:
+    user + assistant).
+  - Token-count budget enforced at ``max_history_tokens``.
+  - Summarisation triggered at ``summarization_trigger_turns`` when
+    ``summarization_enabled`` is True.
+  - Session TTL managed via Redis EXPIRE at ``session_ttl_seconds``.
+  - ``redis`` is lazily imported; falls back to in-process dict when Redis
+    is unavailable.
+----------------------------------------
+File: services\document_grader.py
+services/document_grader.py
+
+Grades retrieved chunks for relevance using the CRAG grading prompt.
+
+For each ``RetrievedChunk``, calls the configured LLM with the relevance
+grading prompt from ``prompts/grading.py`` and returns a
+``(RetrievedChunk, RelevanceGrade, float)`` triple.
+
+The grading step is gated by ``CragSettings.enabled`` — when CRAG is
+disabled this service still works but callers (e.g. CragAgent) may not
+invoke it.
+----------------------------------------
+File: services\email_service.py
+services/email_service.py
+
+Email delivery via SMTP (default), SES, or SendGrid.
+----------------------------------------
+File: services\email_templates.py
+services/email_templates.py
+
+Renders email templates for verification and password reset.
+----------------------------------------
+File: services\eval_service.py
+services/eval_service.py
+
+Retrieval-quality offline evaluation (§1.6).
+
+Replays every EvalQuery through HybridRetriever and computes:
+  - MRR (Mean Reciprocal Rank)
+  - Hit Rate @ 5
+  - NDCG @ 10
+  - Top-1 Accuracy
+
+Results are stored in an EvalRun row. The Analytics page shows the LAST
+EvalRun labeled with its timestamp — this is explicitly NOT a live metric.
+
+Trigger via POST /api/analytics/eval/run (TENANT_ADMIN only).
+----------------------------------------
+File: services\health_sampler.py
+services/health_sampler.py
+
+Periodic HealthSample writer for the Analytics system-health panel.
+
+Launched as a background task from app/main.py lifespan. Samples
+system metrics every 60 seconds and writes a HealthSample row.
+----------------------------------------
+File: services\notification.py
+services/notification.py
+
+Notification creation and retrieval (§1.9).
+
+Polled, not pushed — GET /api/notifications returns unread notifications.
+Notifications are written when:
+  - An ingestion job completes or fails
+  - An invite is accepted (future)
+  - An eval run finishes
+----------------------------------------
+File: services\query_decomposer.py
+services/query_decomposer.py
+
+Decomposes compound queries into simpler sub-queries via an LLM call.
+
+Gated by ``FeatureFlags.enable_query_decomposition``:
+  - When the flag is OFF, returns ``[query]`` unchanged (no-op).
+  - When the query doesn't look compound, returns ``[query]`` unchanged.
+  - Otherwise, calls the LLM with ``render_decomposition_prompt`` and parses
+    the numbered list response into individual sub-queries.
+----------------------------------------
+File: services\query_router.py
+services/query_router.py
+
+Lightweight intent classifier that maps a user query to a ``QueryIntent``
+enum value.
+
+Strategy: rule-based heuristics (keyword matching + pattern scoring).  This
+is intentionally simple and fast — no LLM call required.  The classifier is
+accurate enough for routing purposes; individual pipeline stages perform
+deeper analysis if needed.
+
+Intent → routing:
+  CODE_SEARCH   — queries about code symbols, functions, classes, repos
+  WEB_SEARCH    — queries about current events, news, prices, live data
+  HYBRID_SEARCH — queries combining knowledge-base and external info
+  COMPLEX_QA    — multi-part or analytical questions
+  SIMPLE_QA     — everything else
+----------------------------------------
+File: services\rag_pipeline.py
+services/rag_pipeline.py
+
+Master RAG pipeline orchestrator.
+
+Pipeline order (per Milestone 3 spec):
+  1. InputGuard.validate
+  2. SemanticCache.get  (return early on hit when use_cache=True)
+  3. ConversationStore.get_history
+  4. QueryRouter.route
+  5. QueryDecomposer.decompose
+  6. HybridRetriever.retrieve  (per sub-query, results merged)
+  7. Reranker.rerank
+  8. CragAgent.correct  (when features.enable_crag is True)
+  9. Context builder (rank + format retrieved chunks)
+  10. LLM generation (streaming or non-streaming)
+  11. OutputGuard.verify
+  12. ConversationStore.add_message  (save history)
+  13. SemanticCache.set  (populate cache when use_cache=True)
+  14. Return ChatResponse
+
+Public methods (exact signatures matched by routes/query.py):
+  run(request: QueryRequest) -> ChatResponse
+  stream(request: QueryRequest) -> AsyncIterator[StreamChunk]
+----------------------------------------
+File: services\runtime_settings.py
+services/runtime_settings.py
+
+Dynamic, tenant-scoped settings that persist in Postgres (§1.7).
+
+Provides TTL-cached reads so the DB isn't hit on every request, and
+atomic writes that invalidate the relevant cache entry.
+
+Usage:
+    from services.runtime_settings import RuntimeSettingsService, get_runtime_settings
+    svc = get_runtime_settings()
+    val = await svc.get("my-tenant-id", "max_tokens", default=2048)
+    await svc.set("my-tenant-id", "max_tokens", 4096, updated_by="user-id")
+
+Rate Limit and Concurrent Requests are NOT here — they live in TenantConfig.
+----------------------------------------
+File: services\semantic_cache.py
+services/semantic_cache.py
+
+Redis-backed semantic query cache.
+
+Cache lookups are similarity-based rather than exact-string-match: the query
+is embedded and compared (cosine similarity) against cached query embeddings.
+A hit is returned when similarity ≥ ``RedisSettings.cache_similarity_threshold``.
+
+Embeddings are stored alongside the serialised ``ChatResponse`` under a
+``RedisSettings.cache_key_prefix``-prefixed key.  Both expire at
+``cache_ttl_seconds``.
+
+``redis`` is lazily imported so the module is importable without the library.
+----------------------------------------
+File: services\telemetry.py
+services/telemetry.py
+
+Fire-and-forget telemetry recording (§1.1).
+
+Every /api/query and /api/search call writes one row after responding —
+telemetry is a side effect, never blocking the response.
+
+Functions:
+  record_query_event(...)    — writes QueryEvent + QueryEventCitation rows
+  record_search_event(...)   — writes SearchEvent row
+  record_search_click(...)   — writes SearchClickEvent row
+
+All functions are async and wrapped in asyncio.create_task() by callers
+so they never block the HTTP response.
+----------------------------------------
+File: services\tenant_registry.py
+services/tenant_registry.py
+
+Manages tenant configuration, plan details, rate limits, and feature flags.
+Answers "what is this tenant allowed to do".
+----------------------------------------
+File: services\tool_logger.py
+services/tool_logger.py
+
+Tool Execution logger (§1.5).
+
+Fire-and-forget logging of tool executions to the `tool_executions` Postgres table.
+Used by CRAG and the search API to record every tool invocation.
+----------------------------------------
+File: services\__init__.py
+services/__init__.py
+
+Flat export surface for services.
+----------------------------------------
+File: tasks\ingestion_tasks.py
+tasks/ingestion_tasks.py
+
+RQ task wrapper for the ingestion pipeline (§1.2).
+
+run_ingestion_job(job_id) is enqueued by POST /api/ingestion/jobs and
+executed by the `rq worker ingestion` process.
+
+Per §1.2:
+  - Persists progress to IngestionJob row as the pipeline runs.
+  - Writes one IngestionJobLog row per pipeline stage transition.
+  - Publishes the same log line to Redis Pub/Sub channel
+    `ingestion:{job_id}` for SSE streaming (§3.4).
+  - Reads IngestionJob.config for per-job Chunker/Embedder overrides.
+
+The task uses a synchronous DB session (psycopg2) because RQ workers
+run in a regular sync Python process, not an async event loop.
+----------------------------------------
+File: tasks\__init__.py
+tasks/__init__.py
+
+RQ task package. Worker entrypoint:
+  rq worker ingestion --url redis://redis:6379/0
+----------------------------------------
+File: tools\code_search.py
+tools/code_search.py
+
+Pure-stdlib code search across a Python repository.
+
+Two search modes:
+  1. Symbol search  — AST-based enumeration of function/class definitions
+     whose names contain the query string (case-insensitive substring match).
+  2. Substring search — plain text grep across all *.py files.
+
+Both modes are combined and de-duplicated before returning the top-k results.
+
+No third-party dependencies — uses only ``ast``, ``pathlib``, and stdlib.
+----------------------------------------
+File: tools\vector_search.py
+tools/vector_search.py
+
+Thin pass-through wrapper over ``HybridRetriever`` that exposes a simple
+``search()`` interface for use by agents and services.
+
+This indirection keeps ``agents/`` and ``services/`` decoupled from the
+retrieval internals — they call ``VectorSearchTool.search()``, not
+``HybridRetriever.retrieve()`` directly.
+----------------------------------------
+File: tools\web_search.py
+tools/web_search.py
+
+Web search tool supporting Serper and Tavily APIs.
+
+Graceful degradation:
+  - Returns ``[]`` with a logged WARNING if no API key is configured
+    (never raises in that case).
+  - Raises ``WebSearchError`` only on actual API or network failures when
+    a key IS configured.
+  - ``httpx`` is lazily imported so the module is always importable.
+
+Provider selection:
+  - ``SERPER_API_KEY`` → Google Search via api.serper.dev
+  - ``TAVILY_API_KEY`` → Tavily Search API
+  - If both are set, Serper is preferred.
+----------------------------------------
+File: tools\__init__.py
+No docstring provided.
+----------------------------------------

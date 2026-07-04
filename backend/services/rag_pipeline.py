@@ -41,6 +41,7 @@ from services.document_grader import DocumentGrader
 from agents.crag import CragAgent
 from services.semantic_cache import SemanticCache
 from security.input_guard import InputGuard, SecurityError
+from services.runtime_settings import get_runtime_settings
 from security.output_guard import OutputGuard
 from prompts import render_rag_prompt, render_system_prompt
 from app.config import LLMSettings, get_settings
@@ -55,7 +56,7 @@ from app.models import (
     ChatMessage,
     MessageRole,
     StreamEventType,
-    TenantContext,
+    QueryIntent,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,11 +96,14 @@ class RAGPipeline:
         self._input_guard = input_guard or InputGuard()
         self._output_guard = output_guard or OutputGuard()
 
+        from tools.web_search import WebSearchTool
+        self._web_search = WebSearchTool()
+
     # ------------------------------------------------------------------
     # Non-streaming
     # ------------------------------------------------------------------
 
-    def run(self, request: QueryRequest, tenant_context: TenantContext) -> ChatResponse:
+    async def run(self, request: QueryRequest, user_id: str, user_api_keys: dict = None) -> ChatResponse:
         """
         Execute the full RAG pipeline and return a ``ChatResponse``.
 
@@ -109,21 +113,30 @@ class RAGPipeline:
 
         # 1. Input validation
         try:
-            self._input_guard.validate(request, tenant_context)
+            await self._input_guard.validate(request)
         except SecurityError as exc:
             raise  # Let the route handler convert to ErrorResponse
 
-        tenant_id = tenant_context.tenant_id
+        # 1.5 Fetch keys
+        cfg = get_settings()
+        user_api_keys = user_api_keys or {}
+        llm_api_key = user_api_keys.get("GROQ_API_KEY") or cfg.resolved_llm_api_key()
+        embed_api_key = cfg.resolved_embedding_api_key()
+        if user_api_keys.get("SERPER_API_KEY"):
+            self._web_search._serper_key = user_api_keys["SERPER_API_KEY"]
+        
+        # Override embedder settings for this request
+        self._retriever._embedder._cfg = self._retriever._embedder._cfg.model_copy(update={"api_key": embed_api_key})
 
         # 2. Semantic cache lookup
         if request.use_cache:
-            cached = self._cache.get(tenant_id, request.query)
+            cached = self._cache.get(request.query, user_id=user_id)
             if cached is not None:
                 cached.metadata.used_cache = True
                 return cached
 
         # 3. Conversation history
-        history = self._store.get_history(tenant_id, request.session_id)
+        history = self._store.get_history(request.session_id, user_id=user_id)
 
         # 4. Query routing
         intent = self._router.route(request.query, history=history)
@@ -134,21 +147,50 @@ class RAGPipeline:
         # 6. Retrieval (merge results from all sub-queries)
         t_retrieval_start = time.monotonic()
         all_chunks: List[RetrievedChunk] = []
-        for sq in sub_queries:
-            chunks = self._retriever.retrieve(
-                tenant_id=tenant_id,
-                query=sq,
-                top_k=request.top_k,
-                filters=request.filters or [],
-            )
-            all_chunks.extend(chunks)
-        # De-duplicate by chunk_id
+        used_web_search = False
+
+        if request.force_web_search:
+            # ONLY do web search
+            try:
+                from app.models import RetrievalSource
+                web_results = self._web_search.search(request.query, top_k=3)
+                for res in web_results:
+                    snippet = res.get("snippet", "").strip()
+                    if snippet:
+                        all_chunks.append(
+                            RetrievedChunk(
+                                chunk_id=f"web:{hash(snippet) & 0xFFFFFFFF:08x}",
+                                document_id=res.get("url", "web"),
+                                text=snippet,
+                                source=RetrievalSource.WEB,
+                                metadata={
+                                    "title": res.get("title", ""),
+                                    "url": res.get("url", ""),
+                                    "source_type": "web",
+                                },
+                            )
+                        )
+                used_web_search = True
+            except Exception as e:
+                logger.warning(f"Web search failed in pipeline: {e}")
+        else:
+            # ONLY do document retrieval
+            for sq in sub_queries:
+                chunks = self._retriever.retrieve(
+                    query=sq,
+                    user_id=user_id,
+                    top_k=request.top_k,
+                    filters=request.filters or [],
+                )
+                all_chunks.extend(chunks)
+
         seen_ids: set = set()
         unique_chunks: List[RetrievedChunk] = []
         for c in all_chunks:
             if c.chunk_id not in seen_ids:
                 seen_ids.add(c.chunk_id)
                 unique_chunks.append(c)
+
         retrieval_latency = (time.monotonic() - t_retrieval_start) * 1000
 
         # 7. Rerank
@@ -157,7 +199,7 @@ class RAGPipeline:
         # 8. CRAG correction
         settings = get_settings()
         if settings.features.enable_crag:
-            reranked = self._crag.correct(tenant_id, request.query, reranked)
+            reranked = self._crag.correct(request.query, reranked)
 
         # 9. Context builder
         context_str, citations = self._build_context(reranked)
@@ -170,6 +212,7 @@ class RAGPipeline:
             history=history,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
+            api_key=llm_api_key,
         )
         generation_latency = (time.monotonic() - t_gen_start) * 1000
 
@@ -185,11 +228,15 @@ class RAGPipeline:
         metadata = ResponseMetadata(
             intent=intent,
             used_cache=False,
+            used_web_search=used_web_search,
             retrieval_latency_ms=retrieval_latency,
             generation_latency_ms=generation_latency,
             total_latency_ms=total_latency,
             token_usage=token_usage,
             model_name=settings.llm.model_name,
+            retrieved_count=len(all_chunks),
+            reranked_count=len(reranked),
+            top_k=request.top_k,
         )
 
         response = ChatResponse(
@@ -201,20 +248,20 @@ class RAGPipeline:
 
         # 12. Save conversation history
         self._store.add_message(
-            tenant_id,
             request.session_id,
             ChatMessage(role=MessageRole.USER, content=request.query),
+            user_id=user_id
         )
         self._store.add_message(
-            tenant_id,
             request.session_id,
             ChatMessage(role=MessageRole.ASSISTANT, content=answer),
+            user_id=user_id
         )
-        self._store.summarize_if_needed(tenant_id, request.session_id)
+        self._store.summarize_if_needed(request.session_id, user_id=user_id)
 
         # 13. Populate cache
         if request.use_cache:
-            self._cache.set(tenant_id, request.query, response)
+            self._cache.set(request.query, response, user_id=user_id)
 
         return response
 
@@ -222,7 +269,7 @@ class RAGPipeline:
     # Streaming
     # ------------------------------------------------------------------
 
-    async def stream(self, request: QueryRequest, tenant_context: TenantContext) -> AsyncIterator[StreamChunk]:
+    async def stream(self, request: QueryRequest, user_id: str, user_api_keys: dict = None) -> AsyncIterator[StreamChunk]:
         """
         Execute the pipeline with streaming LLM generation.
 
@@ -237,7 +284,7 @@ class RAGPipeline:
 
         # 1. Input validation
         try:
-            self._input_guard.validate(request, tenant_context)
+            await self._input_guard.validate(request)
         except SecurityError as exc:
             yield StreamChunk(
                 event=StreamEventType.ERROR,
@@ -253,27 +300,62 @@ class RAGPipeline:
             sequence=seq,
         )
         seq += 1
+        # 1.5 Fetch keys
+        cfg = get_settings()
+        user_api_keys = user_api_keys or {}
+        llm_api_key = user_api_keys.get("GROQ_API_KEY") or cfg.resolved_llm_api_key()
+        embed_api_key = cfg.resolved_embedding_api_key()
+        if user_api_keys.get("SERPER_API_KEY"):
+            self._web_search._serper_key = user_api_keys["SERPER_API_KEY"]
         
-        tenant_id = tenant_context.tenant_id
+        # Override embedder settings for this request
+        self._retriever._embedder._cfg = self._retriever._embedder._cfg.model_copy(update={"api_key": embed_api_key})
 
         # 2. Cache
         if request.use_cache:
-            cached = self._cache.get(tenant_id, request.query)
+            cached = self._cache.get(request.query, user_id=user_id)
             if cached is not None:
                 async for chunk in self._replay_cached(cached, request.session_id, seq):
                     yield chunk
                 return
 
         # 3–9. Same as non-streaming (retrieval is not streamed)
-        history = self._store.get_history(tenant_id, request.session_id)
+        history = self._store.get_history(request.session_id, user_id=user_id)
         intent = self._router.route(request.query, history=history)
         sub_queries = self._decomposer.decompose(request.query)
 
         all_chunks: List[RetrievedChunk] = []
-        for sq in sub_queries:
-            all_chunks.extend(
-                self._retriever.retrieve(tenant_id=tenant_id, query=sq, top_k=request.top_k, filters=request.filters or [])
-            )
+        used_web_search = False
+
+        if request.force_web_search:
+            try:
+                from app.models import RetrievalSource
+                web_results = self._web_search.search(request.query, top_k=3)
+                for res in web_results:
+                    snippet = res.get("snippet", "").strip()
+                    if snippet:
+                        all_chunks.append(
+                            RetrievedChunk(
+                                chunk_id=f"web:{hash(snippet) & 0xFFFFFFFF:08x}",
+                                document_id=res.get("url", "web"),
+                                text=snippet,
+                                source=RetrievalSource.WEB,
+                                metadata={
+                                    "title": res.get("title", ""),
+                                    "url": res.get("url", ""),
+                                    "source_type": "web",
+                                },
+                            )
+                        )
+                used_web_search = True
+            except Exception as e:
+                logger.warning(f"Web search failed in pipeline: {e}")
+        else:
+            for sq in sub_queries:
+                all_chunks.extend(
+                    self._retriever.retrieve(query=sq, user_id=user_id, top_k=request.top_k, filters=request.filters or [])
+                )
+
         seen_ids: set = set()
         unique_chunks: List[RetrievedChunk] = []
         for c in all_chunks:
@@ -285,7 +367,7 @@ class RAGPipeline:
         reranked = self._reranker.rerank(request.query, unique_chunks, top_n=request.top_k)
                     
         if settings.features.enable_crag:
-            reranked = self._crag.correct(tenant_id, request.query, reranked)
+            reranked = self._crag.correct(request.query, reranked)
 
         context_str, citations = self._build_context(reranked)
 
@@ -299,6 +381,7 @@ class RAGPipeline:
             history=history,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
+            api_key=llm_api_key,
         ):
             full_answer += token
             yield StreamChunk(
@@ -323,8 +406,12 @@ class RAGPipeline:
         meta = ResponseMetadata(
             intent=intent,
             used_cache=False,
+            used_web_search=used_web_search,
             total_latency_ms=total_latency,
             model_name=settings.llm.model_name,
+            retrieved_count=len(all_chunks),
+            reranked_count=len(reranked),
+            top_k=request.top_k,
         )
 
         yield StreamChunk(
@@ -335,9 +422,9 @@ class RAGPipeline:
         )
 
         # 12. Save history
-        self._store.add_message(tenant_id, request.session_id, ChatMessage(role=MessageRole.USER, content=request.query))
-        self._store.add_message(tenant_id, request.session_id, ChatMessage(role=MessageRole.ASSISTANT, content=full_answer))
-        self._store.summarize_if_needed(tenant_id, request.session_id)
+        self._store.add_message(request.session_id, ChatMessage(role=MessageRole.USER, content=request.query), user_id=user_id)
+        self._store.add_message(request.session_id, ChatMessage(role=MessageRole.ASSISTANT, content=full_answer), user_id=user_id)
+        self._store.summarize_if_needed(request.session_id, user_id=user_id)
 
         # 13. Cache
         if request.use_cache and full_answer:
@@ -347,7 +434,7 @@ class RAGPipeline:
                 citations=citations,
                 metadata=meta,
             )
-            self._cache.set(tenant_id, request.query, response)
+            self._cache.set(request.query, response, user_id=user_id)
 
     # ------------------------------------------------------------------
     # Context building
@@ -388,12 +475,13 @@ class RAGPipeline:
         history: List[ChatMessage],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        api_key: Optional[str] = None,
     ) -> tuple[str, Optional[TokenUsage]]:
         cfg = get_settings()
         temp = temperature if temperature is not None else cfg.llm.temperature
         tokens = max_tokens if max_tokens is not None else cfg.llm.max_tokens
         provider = cfg.llm.provider.value
-        api_key = cfg.resolved_llm_api_key()
+        resolved_key = api_key or cfg.resolved_llm_api_key()
         system_prompt = render_system_prompt()
         user_prompt = render_rag_prompt(query, context)
 
@@ -401,11 +489,11 @@ class RAGPipeline:
 
         if provider == "anthropic":
             return self._generate_anthropic(
-                system_prompt, messages, temp, tokens, cfg.llm.model_name, api_key
+                system_prompt, messages, temp, tokens, cfg.llm.model_name, resolved_key
             )
-        if provider == "openai":
+        if provider in ("openai", "groq", "openrouter"):
             return self._generate_openai(
-                system_prompt, messages, temp, tokens, cfg.llm.model_name, api_key
+                system_prompt, messages, temp, tokens, cfg.llm.model_name, resolved_key, cfg.resolved_llm_base_url()
             )
         if provider == "ollama":
             return self._generate_ollama(
@@ -437,11 +525,11 @@ class RAGPipeline:
 
     def _generate_openai(
         self, system: str, messages: list, temp: float, max_tok: int,
-        model: str, api_key: Optional[str]
+        model: str, api_key: Optional[str], base_url: Optional[str] = None
     ) -> tuple[str, Optional[TokenUsage]]:
         import openai  # noqa: PLC0415
         full_messages = [{"role": "system", "content": system}] + messages
-        oc = openai.OpenAI(api_key=api_key)
+        oc = openai.OpenAI(api_key=api_key, base_url=base_url)
         resp = oc.chat.completions.create(
             model=model,
             messages=full_messages,
@@ -480,30 +568,31 @@ class RAGPipeline:
         history: List[ChatMessage],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        api_key: Optional[str] = None,
     ) -> AsyncIterator[str]:
         """Yield text tokens from the LLM."""
         cfg = get_settings()
         temp = temperature if temperature is not None else cfg.llm.temperature
         tokens = max_tokens if max_tokens is not None else cfg.llm.max_tokens
         provider = cfg.llm.provider.value
-        api_key = cfg.resolved_llm_api_key()
+        resolved_key = api_key or cfg.resolved_llm_api_key()
         system_prompt = render_system_prompt()
         user_prompt = render_rag_prompt(query, context)
         messages = self._build_messages(history, user_prompt)
 
         if provider == "anthropic":
             async for token in self._stream_anthropic(
-                system_prompt, messages, temp, tokens, cfg.llm.model_name, api_key
+                system_prompt, messages, temp, tokens, cfg.llm.model_name, resolved_key
             ):
                 yield token
-        elif provider == "openai":
+        elif provider in ("openai", "groq", "openrouter"):
             async for token in self._stream_openai(
-                system_prompt, messages, temp, tokens, cfg.llm.model_name, api_key
+                system_prompt, messages, temp, tokens, cfg.llm.model_name, resolved_key, cfg.resolved_llm_base_url()
             ):
                 yield token
         else:
             # Fallback: non-streaming call, emit as one chunk
-            answer, _ = self._generate(query, context, history, temperature, max_tokens)
+            answer, _ = self._generate(query, context, history, temperature, max_tokens, api_key=resolved_key)
             if answer:
                 yield answer
 
@@ -526,11 +615,11 @@ class RAGPipeline:
 
     async def _stream_openai(
         self, system: str, messages: list, temp: float, max_tok: int,
-        model: str, api_key: Optional[str]
+        model: str, api_key: Optional[str], base_url: Optional[str] = None
     ) -> AsyncIterator[str]:
         import openai  # noqa: PLC0415
         full_messages = [{"role": "system", "content": system}] + messages
-        oc = openai.OpenAI(api_key=api_key)
+        oc = openai.OpenAI(api_key=api_key, base_url=base_url)
         with oc.chat.completions.create(
             model=model,
             messages=full_messages,

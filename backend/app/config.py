@@ -30,6 +30,9 @@ from typing import List, Optional
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -48,6 +51,8 @@ class LLMProvider(str, Enum):
     ANTHROPIC = "anthropic"
     AZURE_OPENAI = "azure_openai"
     OLLAMA = "ollama"
+    GROQ = "groq"
+    OPENROUTER = "openrouter"
 
 
 class EmbeddingProvider(str, Enum):
@@ -152,8 +157,8 @@ class LLMSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LLM_", extra="ignore")
 
-    provider: LLMProvider = Field(default=LLMProvider.ANTHROPIC)
-    model_name: str = Field(default="claude-sonnet-4-6")
+    provider: LLMProvider = Field(default=LLMProvider.GROQ)
+    model_name: str = Field(default="llama-3.1-8b-instant")
     api_key: Optional[str] = Field(default=None, repr=False)
     fallback_model_name: Optional[str] = Field(default=None)
     temperature: float = Field(default=0.2, ge=0.0, le=2.0)
@@ -230,6 +235,21 @@ class CragSettings(BaseSettings):
         return self
 
 
+class EmailSettings(BaseSettings):
+    """Email delivery configuration."""
+    model_config = SettingsConfigDict(env_prefix="EMAIL_", extra="ignore")
+
+    provider: str = Field(default="smtp") # "smtp", "ses", "sendgrid"
+    smtp_host: str = Field(default="localhost")
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: Optional[str] = Field(default=None)
+    smtp_password: Optional[str] = Field(default=None, repr=False)
+    smtp_use_tls: bool = Field(default=True)
+    from_address: str = Field(default="noreply@ragsystem.ai")
+    from_name: str = Field(default="RAG Service")
+    ses_region: Optional[str] = Field(default=None)
+    sendgrid_api_key: Optional[str] = Field(default=None, repr=False)
+
 class DatabaseSettings(BaseSettings):
     """PostgreSQL connection configuration."""
 
@@ -241,16 +261,22 @@ class DatabaseSettings(BaseSettings):
     user: str = Field(default="rag_user")
     password: str = Field(default="rag_password", repr=False)
     pool_size: int = Field(default=10, ge=1)
-    max_overflow: int = Field(default=20, ge=0)
+    max_overflow: int = Field(default=10, ge=0)
 
     @property
     def url(self) -> str:
-        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+        from urllib.parse import quote_plus
+        user = quote_plus(self.user)
+        password = quote_plus(self.password)
+        return f"postgresql+asyncpg://{user}:{password}@{self.host}:{self.port}/{self.name}"
 
     @property
     def sync_url(self) -> str:
         """Synchronous URL for Alembic migrations."""
-        return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+        from urllib.parse import quote_plus
+        user = quote_plus(self.user)
+        password = quote_plus(self.password)
+        return f"postgresql+psycopg2://{user}:{password}@{self.host}:{self.port}/{self.name}"
 
 
 class BlobStorageSettings(BaseSettings):
@@ -333,18 +359,15 @@ class FeatureFlags(BaseSettings):
     enable_crag: bool = Field(default=True)
 
 
-class TenancySettings(BaseSettings):
-    """Multi-tenancy configuration and JWT claims mapping."""
 
-    model_config = SettingsConfigDict(env_prefix="TENANCY_", extra="ignore")
+class OAuthSettings(BaseSettings):
+    """OAuth provider configuration."""
 
-    enabled: bool = Field(default=True)
-    jwt_tenant_claim: str = Field(default="tenant_id")
-    jwt_user_claim: str = Field(default="sub")
-    jwt_roles_claim: str = Field(default="roles")
-    default_tenant_id: Optional[str] = Field(default=None)
-    tenant_id_payload_field: str = Field(default="tenant_id")
-    registry_cache_ttl_seconds: int = Field(default=300, ge=0)
+    model_config = SettingsConfigDict(env_prefix="OAUTH_", extra="ignore")
+
+    google_client_id: Optional[str] = Field(default=None)
+    google_client_secret: Optional[str] = Field(default=None, repr=False)
+
 
 
 # --------------------------------------------------------------------------- #
@@ -375,6 +398,7 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8000, ge=1, le=65535)
     workers: int = Field(default=1, ge=1)
+    frontend_base_url: str = Field(default="http://localhost:3000")
 
     # --- Filesystem paths ---
     base_dir: Path = Field(
@@ -392,6 +416,8 @@ class Settings(BaseSettings):
     cohere_api_key: Optional[str] = Field(default=None, repr=False)
     serper_api_key: Optional[str] = Field(default=None, repr=False)
     tavily_api_key: Optional[str] = Field(default=None, repr=False)
+    groq_api_key: Optional[str] = Field(default=None, repr=False)
+    openrouter_api_key: Optional[str] = Field(default=None, repr=False)
 
     # --- Sub-settings groups ---
     redis: RedisSettings = Field(default_factory=RedisSettings)
@@ -407,7 +433,8 @@ class Settings(BaseSettings):
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     conversation: ConversationSettings = Field(default_factory=ConversationSettings)
     features: FeatureFlags = Field(default_factory=FeatureFlags)
-    tenancy: TenancySettings = Field(default_factory=TenancySettings)
+    email: EmailSettings = Field(default_factory=EmailSettings)
+    oauth: OAuthSettings = Field(default_factory=OAuthSettings)
 
     # ----------------------------------------------------------------- #
     # Validators
@@ -460,9 +487,6 @@ class Settings(BaseSettings):
         if not self.security.jwt_secret_key:
             raise ValueError("SECURITY_JWT_SECRET_KEY is required in production")
             
-        if self.tenancy.default_tenant_id is not None:
-            raise ValueError("TENANCY_DEFAULT_TENANT_ID must not be set in production to avoid silent security bypasses")
-
         return self
 
     @model_validator(mode="after")
@@ -502,7 +526,17 @@ class Settings(BaseSettings):
         return {
             LLMProvider.ANTHROPIC: self.anthropic_api_key,
             LLMProvider.OPENAI: self.openai_api_key,
+            LLMProvider.GROQ: self.groq_api_key,
+            LLMProvider.OPENROUTER: self.openrouter_api_key,
         }.get(self.llm.provider)
+        
+    def resolved_llm_base_url(self) -> Optional[str]:
+        """Returns the base_url if the provider uses an OpenAI-compatible API."""
+        if self.llm.provider == LLMProvider.GROQ:
+            return "https://api.groq.com/openai/v1"
+        if self.llm.provider == LLMProvider.OPENROUTER:
+            return "https://openrouter.ai/api/v1"
+        return None
 
     def resolved_embedding_api_key(self) -> Optional[str]:
         """Returns the effective API key for the configured embedding provider."""

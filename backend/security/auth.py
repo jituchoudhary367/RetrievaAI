@@ -33,7 +33,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models import TenantContext
 from db.engine import get_db
 from db.models.user import User, UserSession
 
@@ -48,19 +47,6 @@ class AuthError(HTTPException):
         )
 
 # -------------------------------------------------------------------------
-# Password hashing
-# -------------------------------------------------------------------------
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
-
-
-# -------------------------------------------------------------------------
 # Token creation
 # -------------------------------------------------------------------------
 
@@ -70,20 +56,24 @@ def _settings():
 
 def create_access_token(
     user_id: str,
-    tenant_id: str,
     roles: List[str],
     token_version: int,
     jti: Optional[str] = None,
+    avatar_url: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
 ) -> str:
     cfg = _settings()
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=cfg.jwt_access_token_expire_minutes)
     payload = {
         "sub": user_id,
-        "tid": tenant_id,
         "roles": roles,
         "tv": token_version,          # token_version — for kill-all
         "jti": jti or str(uuid.uuid4()),  # jti — for per-session revoke
+        "avatar_url": avatar_url,
+        "name": name,
+        "email": email,
         "iat": now,
         "exp": expire,
         "type": "access",
@@ -91,18 +81,30 @@ def create_access_token(
     return jwt.encode(payload, cfg.jwt_secret_key, algorithm=cfg.jwt_algorithm)
 
 
-def create_refresh_token(user_id: str, jti: str) -> str:
+def create_refresh_token(user_id: str, jti: str, token_version: int) -> str:
     cfg = _settings()
     now = datetime.now(timezone.utc)
     expire = now + timedelta(days=cfg.jwt_refresh_token_expire_days)
     payload = {
         "sub": user_id,
         "jti": jti,
+        "tv": token_version,
         "iat": now,
         "exp": expire,
         "type": "refresh",
     }
     return jwt.encode(payload, cfg.jwt_secret_key, algorithm=cfg.jwt_algorithm)
+
+def verify_refresh_token(token: str, current_token_version: int) -> dict:
+    payload = _decode_token(token)
+    if payload.get("type") != "refresh":
+        raise AuthError("Invalid token type")
+    
+    token_version = payload.get("tv")
+    if token_version is None or token_version != current_token_version:
+        raise AuthError("Session invalidated")
+        
+    return payload
 
 
 # -------------------------------------------------------------------------
@@ -119,33 +121,30 @@ def _decode_token(token: str) -> dict:
     except JWTError as exc:
         raise AuthError("Invalid or expired token") from exc
 
-
-async def get_tenant_context(
+def get_current_user_id(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
-) -> TenantContext:
+) -> str:
     """
-    FastAPI dependency — extracts TenantContext from JWT based on TenancySettings.
+    FastAPI dependency — validates Bearer JWT and returns the User ID.
+    Does not query the database.
     """
     if credentials is None:
         raise AuthError("Not authenticated")
 
-    payload = _decode_token(credentials.credentials)
-    
-    tenancy_cfg = get_settings().tenancy
-    tenant_id = payload.get(tenancy_cfg.jwt_tenant_claim)
-    if not tenant_id:
-        raise AuthError(f"Missing tenant claim '{tenancy_cfg.jwt_tenant_claim}' in token")
+    try:
+        payload = _decode_token(credentials.credentials)
+    except Exception as e:
+        logger.warning(f"Token decode failed: {e}")
+        raise AuthError("Invalid token")
+
+    if payload.get("type") != "access":
+        raise AuthError("Invalid token type")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise AuthError("Invalid token payload")
         
-    user_id = payload.get(tenancy_cfg.jwt_user_claim)
-    roles = payload.get(tenancy_cfg.jwt_roles_claim, [])
-    if isinstance(roles, str):
-        roles = [r.strip() for r in roles.split(",")]
-        
-    return TenantContext(
-        tenant_id=str(tenant_id),
-        user_id=str(user_id) if user_id else None,
-        roles=roles,
-    )
+    return user_id
 
 
 async def get_current_user(
@@ -161,15 +160,21 @@ async def get_current_user(
       3. `jti` in token has a non-revoked UserSession row (per-device guard).
     """
     if credentials is None:
+        logger.warning("No credentials provided")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    payload = _decode_token(credentials.credentials)
+    try:
+        payload = _decode_token(credentials.credentials)
+    except Exception as e:
+        logger.warning(f"Token decode failed: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     if payload.get("type") != "access":
+        logger.warning(f"Invalid token type: {payload.get('type')}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
 
     user_id: str = payload.get("sub", "")
@@ -180,10 +185,12 @@ async def get_current_user(
     result = await db.execute(select(User).where(User.id == user_id))
     user: Optional[User] = result.scalar_one_or_none()
     if user is None or not user.is_active:
+        logger.warning(f"User not found or inactive: {user_id}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
 
     # Check kill-all version
     if user.token_version != token_version:
+        logger.warning(f"Token version mismatch. DB: {user.token_version}, Token: {token_version}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session invalidated")
 
     # Check per-session revocation
@@ -195,10 +202,14 @@ async def get_current_user(
     )
     session = sess_result.scalar_one_or_none()
     if session is None:
+        logger.warning(f"Session not found or revoked for JTI: {jti}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session revoked or not found")
 
-    # Update last_seen
-    session.last_seen_at = datetime.now(timezone.utc)
+    # Update last_seen — fire-and-forget; don't let DB timeout crash the request
+    try:
+        session.last_seen_at = datetime.now(timezone.utc)
+    except Exception as _lsa_exc:
+        logger.debug("last_seen_at update skipped: %s", _lsa_exc)
 
     return user
 

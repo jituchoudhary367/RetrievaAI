@@ -187,8 +187,8 @@ class IngestionPipeline:
 
     def ingest_path(
         self,
-        tenant_id: str,
         path: Path,
+        user_id: str,
         glob: str = "**/*",
         force: bool = False,
     ) -> IngestionReport:
@@ -220,7 +220,7 @@ class IngestionPipeline:
         logger.info("Starting ingestion of %d file(s).", len(files))
 
         for file_path in files:
-            result = self._ingest_file(tenant_id, file_path, manifest, force)
+            result = self._ingest_file(file_path, manifest, user_id, force)
             report.results.append(result)
             if result.status == "indexed":
                 report.indexed += 1
@@ -246,9 +246,9 @@ class IngestionPipeline:
 
     def _ingest_file(
         self,
-        tenant_id: str,
         file_path: Path,
         manifest: IngestionManifest,
+        user_id: str,
         force: bool,
     ) -> FileIngestResult:
         str_path = str(file_path)
@@ -267,8 +267,9 @@ class IngestionPipeline:
             extraction_result = extractor.extract(file_path)
 
             # --- Idempotency check ---
+            extraction_result.metadata.user_id = user_id
             content_hash = compute_content_hash(extraction_result.text)
-            manifest_key = f"{tenant_id}:{content_hash}"
+            manifest_key = f"{user_id}:{content_hash}"
             if not force and manifest.contains_hash(manifest_key):
                 logger.debug("Skipping unchanged file %s (hash match).", file_path)
                 return FileIngestResult(path=str_path, status="skipped")
@@ -308,12 +309,8 @@ class IngestionPipeline:
                     warnings=warnings,
                 )
 
-            # Assign tenant_id to document metadata and chunks
-            extraction_result.metadata.tenant_id = tenant_id
-            for chunk in chunks:
-                chunk.tenant_id = tenant_id
-
             # Enrich chunk metadata with document metadata
+
             meta_dict = {
                 "source_path": extraction_result.metadata.source_path,
                 "source_type": source_type,
@@ -321,13 +318,14 @@ class IngestionPipeline:
                 "author": extraction_result.metadata.author or "",
             }
             for chunk in chunks:
+                chunk.user_id = user_id
                 chunk.metadata.update(meta_dict)
 
             # --- Embed ---
             chunks = self._embedder.embed_chunks(chunks)
 
             # --- Index ---
-            count = self._indexer.index_chunks(chunks)
+            count = self._indexer.index_chunks(chunks, user_id=user_id)
 
             # --- Record in manifest ---
             manifest.record(manifest_key, str_path)

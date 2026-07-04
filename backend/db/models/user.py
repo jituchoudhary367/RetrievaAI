@@ -16,16 +16,17 @@ from typing import Optional
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from db.base import Base, TimestampMixin, TenantMixin, _new_uuid
+from db.base import Base, TimestampMixin, _new_uuid
 
 
-class User(Base, TimestampMixin, TenantMixin):
+class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[Optional[str]] = mapped_column(String(255))
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(2048))
     roles: Mapped[str] = mapped_column(
         Text, default="VIEWER",
         comment="Comma-separated role list, e.g. VIEWER,TENANT_ADMIN"
@@ -40,10 +41,7 @@ class User(Base, TimestampMixin, TenantMixin):
         String(64), comment="Base32 TOTP secret; null means 2FA not enabled"
     )
     # Email verification / password-reset
-    verification_token: Mapped[Optional[str]] = mapped_column(String(255))
-    verification_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    reset_token: Mapped[Optional[str]] = mapped_column(String(255))
-    reset_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Note: Tokens are now stored in AuthToken (auth_token.py)
 
     # Relationships
     sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -52,7 +50,7 @@ class User(Base, TimestampMixin, TenantMixin):
     )
 
 
-class UserSession(Base, TenantMixin):
+class UserSession(Base):
     """One row per active login session — identified by `session_jti` on the JWT."""
     __tablename__ = "user_sessions"
 

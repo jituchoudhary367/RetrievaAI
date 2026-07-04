@@ -12,7 +12,7 @@ export function useChat() {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
-    async (text: string, sessionId?: string) => {
+    async (text: string, sessionId?: string, useWebSearch: boolean = false) => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -27,6 +27,7 @@ export function useChat() {
         query: text,
         sessionId,
         stream: true,
+        forceWebSearch: useWebSearch,
       };
 
       let assistantResponse = "";

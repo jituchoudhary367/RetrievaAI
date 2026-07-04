@@ -24,11 +24,11 @@ export function SettingsGrid() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex flex-col">
               <span className="text-xs font-medium text-foreground">System Name</span>
-              <span className="text-[10px] text-muted-foreground">The name of your RAG system</span>
+              <span className="text-[10px] text-muted-foreground">The name of your RetrievaAI system</span>
             </div>
             <input 
               type="text" 
-              defaultValue="RAG System"
+              defaultValue="RetrievaAI"
               className="bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-[#4b5563] sm:w-56"
             />
           </div>

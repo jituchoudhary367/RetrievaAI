@@ -25,7 +25,7 @@ from pipeline.ingest import IngestionPipeline, IngestionReport
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
+router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
 class IngestRequest(BaseModel):

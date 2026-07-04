@@ -16,14 +16,10 @@ from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from db.models.tenant import Tenant
 from db.models.tool import Tool
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
-_DEFAULT_TENANT_SLUG = "default"
 
 _BUILTIN_TOOLS = [
     {
@@ -36,7 +32,6 @@ _BUILTIN_TOOLS = [
         ),
         "status": "active",
         "is_executable": True,
-        "tenant_id": _DEFAULT_TENANT_ID,
     },
     {
         "id": "00000000-0000-0000-0001-000000000002",
@@ -48,7 +43,6 @@ _BUILTIN_TOOLS = [
         ),
         "status": "active",
         "is_executable": True,
-        "tenant_id": _DEFAULT_TENANT_ID,
     },
     {
         "id": "00000000-0000-0000-0001-000000000003",
@@ -60,33 +54,15 @@ _BUILTIN_TOOLS = [
         ),
         "status": "active",
         "is_executable": True,
-        "tenant_id": _DEFAULT_TENANT_ID,
     },
 ]
 
 
 async def seed_database(db: AsyncSession) -> None:
     """Idempotently seed the database. Called once per startup."""
-    await _seed_default_tenant(db)
     await _seed_builtin_tools(db)
     await db.commit()
     logger.info("Database seeding complete.")
-
-
-async def _seed_default_tenant(db: AsyncSession) -> None:
-    result = await db.execute(select(Tenant).where(Tenant.id == _DEFAULT_TENANT_ID))
-    if result.scalar_one_or_none() is not None:
-        return  # Already seeded
-
-    tenant = Tenant(
-        id=_DEFAULT_TENANT_ID,
-        name="Default",
-        slug=_DEFAULT_TENANT_SLUG,
-        is_active=True,
-        plan="free",
-    )
-    db.add(tenant)
-    logger.info("Seeded default tenant.")
 
 
 async def _seed_builtin_tools(db: AsyncSession) -> None:
@@ -98,5 +74,3 @@ async def _seed_builtin_tools(db: AsyncSession) -> None:
     logger.info("Seeded %d built-in tools.", len(_BUILTIN_TOOLS))
 
 
-# Make the default tenant ID available to other modules
-DEFAULT_TENANT_ID = _DEFAULT_TENANT_ID

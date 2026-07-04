@@ -20,14 +20,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from db.base import Base, TenantMixin, _new_uuid
+from db.base import Base, _new_uuid
 
 
-class QueryEvent(Base, TenantMixin):
+class QueryEvent(Base):
     __tablename__ = "query_events"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
-    user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     session_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
     query_text: Mapped[str] = mapped_column(Text, nullable=False)
     intent: Mapped[Optional[str]] = mapped_column(String(50))
@@ -72,11 +72,11 @@ class QueryEventCitation(Base):
     event: Mapped["QueryEvent"] = relationship(back_populates="citations")
 
 
-class SearchEvent(Base, TenantMixin):
+class SearchEvent(Base):
     __tablename__ = "search_events"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
-    user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     query_text: Mapped[str] = mapped_column(Text, nullable=False)
     result_count: Mapped[int] = mapped_column(Integer, default=0)
     latency_ms: Mapped[Optional[float]] = mapped_column(Float)
@@ -94,6 +94,7 @@ class SearchClickEvent(Base):
     __tablename__ = "search_click_events"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     search_event_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("search_events.id", ondelete="CASCADE"),
         nullable=False, index=True

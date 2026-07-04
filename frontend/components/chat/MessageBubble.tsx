@@ -7,6 +7,7 @@ import { CitationList } from "./CitationList";
 import { PipelineVisualization } from "./PipelineVisualization";
 import { MessageActions } from "./MessageActions";
 import { Hexagon, User as UserIcon } from "lucide-react";
+import { getUserInfo } from "../../lib/auth/session";
 
 export function MessageBubble({ 
   message, 
@@ -23,10 +24,13 @@ export function MessageBubble({
     if (!ts) return "Just now";
     return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(ts));
   };
+  
+  const userInfo = isUser ? getUserInfo() : null;
+  const avatarUrl = userInfo?.avatarUrl || "https://i.pravatar.cc/150?u=admin";
 
   if (isUser) {
     return (
-      <div className="flex w-full justify-end mb-6">
+      <div className="flex w-full justify-end">
         <div className="flex flex-col max-w-[80%]">
           {/* User Bubble */}
           <div className="bg-[#1e2329] border border-[#30363d] rounded-2xl rounded-tr-sm px-5 py-4 text-sm leading-relaxed text-foreground shadow-sm animate-fade-in">
@@ -36,7 +40,7 @@ export function MessageBubble({
           <div className="flex items-center justify-end mt-2 space-x-2 text-xs text-muted-foreground">
             <span>{formatTime(message.timestamp)}</span>
             <div className="h-6 w-6 rounded-full overflow-hidden flex-shrink-0 border border-[#30363d]">
-              <img src="https://i.pravatar.cc/150?u=admin" alt="Admin" className="h-full w-full object-cover" />
+              <img src={avatarUrl} alt="User Avatar" className="h-full w-full object-cover" />
             </div>
           </div>
         </div>
@@ -45,7 +49,7 @@ export function MessageBubble({
   }
 
   return (
-    <div className="flex w-full justify-start mb-6 animate-fade-in">
+    <div className="flex w-full justify-start animate-fade-in">
       <div className="flex items-start max-w-full">
         {/* Assistant Avatar */}
         <div className="flex items-center justify-center relative w-8 h-8 mr-4 mt-1 flex-shrink-0">

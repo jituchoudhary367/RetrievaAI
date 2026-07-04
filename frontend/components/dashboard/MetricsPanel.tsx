@@ -1,6 +1,6 @@
 import React from "react";
 import { HealthResponse } from "../../lib/types/models";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Activity, Clock } from "lucide-react";
 
 export function MetricsPanel({ health }: { health: HealthResponse | null }) {

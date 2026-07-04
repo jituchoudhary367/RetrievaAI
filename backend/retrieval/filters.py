@@ -25,10 +25,7 @@ class RetrievalError(Exception):
     """Raised when a retrieval-layer operation fails."""
 
 
-from app.config import get_settings
-
 def build_qdrant_filter(
-    tenant_id: str,
     filters: List[MetadataFilter],
 ) -> Optional[object]:
     """
@@ -49,9 +46,6 @@ def build_qdrant_filter(
     ImportError  if ``qdrant-client`` is not installed.
     RetrievalError  if an unsupported operator is encountered.
     """
-    if not tenant_id:
-        raise ValueError("tenant_id must be provided to build_qdrant_filter")
-
     try:
         from qdrant_client.http.models import (  # noqa: PLC0415
             Filter,
@@ -73,14 +67,6 @@ def build_qdrant_filter(
         condition = _build_condition(f, FieldCondition, MatchValue, MatchAny, MatchExcept, Range)
         if condition is not None:
             conditions.append(condition)
-
-    # Mandatory tenant_id filter
-    tenant_payload_field = get_settings().tenancy.tenant_id_payload_field
-    tenant_condition = FieldCondition(
-        key=tenant_payload_field,
-        match=MatchValue(value=tenant_id)
-    )
-    conditions.append(tenant_condition)
 
     if not conditions:
         return None
