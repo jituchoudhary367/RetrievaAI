@@ -88,7 +88,9 @@ def render_rag_prompt(
 
     return (
         f"You are a precise AI assistant. Use ONLY the following context to "
-        f"answer the question. {citation_instruction}\n\n"
+        f"answer the question. {citation_instruction}\n"
+        f"Synthesize the information into a coherent answer in your own words. DO NOT simply copy and paste the raw context chunks verbatim. "
+        f"Format your response clearly using Markdown, including paragraphs, bullet points, and headings where appropriate to structure the information.\n\n"
         f"=== CONTEXT START ===\n{context}\n=== CONTEXT END ===\n\n"
         f"Question: {query}\n\n"
         "Answer:"

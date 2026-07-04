@@ -20,6 +20,8 @@ export function AnalyticsStatsRow() {
       }
     }
     loadStats();
+    const interval = setInterval(loadStats, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const StatCard = ({ title, value, subtext, subtextColor, subtextIcon: SubIcon, icon: Icon, colorClass, iconBg, svgPath, svgGradient }: any) => (

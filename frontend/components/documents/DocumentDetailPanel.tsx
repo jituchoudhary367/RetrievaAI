@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
-import { X, FileText, Copy, Eye, Download, Trash2, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, FileText, Copy, Eye, Download, Trash2, Plus, Loader2 } from 'lucide-react';
+import { documentsApi } from '@/lib/api/documents';
 
 export function DocumentDetailPanel({ document, onClose }: any) {
   const [activeTab, setActiveTab] = useState('Overview');
@@ -19,6 +20,20 @@ export function DocumentDetailPanel({ document, onClose }: any) {
 
   const docType = document.type || 'unknown';
   const tags = document.tags || [];
+
+  const [chunks, setChunks] = useState<any[]>([]);
+  const [loadingChunks, setLoadingChunks] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'Chunks' && document?.id) {
+      setLoadingChunks(true);
+      documentsApi.getChunks(document.id)
+        .then(res => setChunks(res || []))
+        .catch(err => console.error("Failed to fetch chunks", err))
+        .finally(() => setLoadingChunks(false));
+    }
+  }, [activeTab, document?.id]);
 
   return (
     <div className="flex flex-col h-full relative">
@@ -152,7 +167,36 @@ export function DocumentDetailPanel({ document, onClose }: any) {
             </div>
           </>
         )}
-        {activeTab !== 'Overview' && (
+        {activeTab === 'Chunks' && (
+          <div className="flex flex-col space-y-4">
+            <span className="text-xs font-semibold text-foreground">Extracted Chunks</span>
+            {loadingChunks ? (
+              <div className="flex justify-center p-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : chunks.length > 0 ? (
+              <div className="flex flex-col space-y-3">
+                {chunks.map((chunk, idx) => (
+                  <div key={chunk.chunk_id || idx} className="bg-[#12181f] border border-[#1e2329] rounded-lg p-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] text-muted-foreground font-mono">Chunk {chunk.chunk_index}</span>
+                      <span className="text-[10px] text-muted-foreground">{chunk.text.length} chars</span>
+                    </div>
+                    <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap font-sans break-words max-h-40 overflow-y-auto scrollbar-thin">
+                      {chunk.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground text-xs p-4 bg-[#12181f] border border-[#1e2329] rounded-lg">
+                No chunks found in Qdrant for this document. Did you re-ingest it?
+              </div>
+            )}
+          </div>
+        )}
+
+        {(activeTab !== 'Overview' && activeTab !== 'Chunks') && (
           <div className="text-center text-muted-foreground text-xs p-4">
             No {activeTab.toLowerCase()} data available yet.
           </div>
@@ -162,11 +206,7 @@ export function DocumentDetailPanel({ document, onClose }: any) {
       {/* Footer Buttons Fixed */}
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-[#0d1117] border-t border-[#30363d] flex items-center justify-between space-x-2">
         <button 
-          onClick={async () => {
-            if (confirm("Are you sure you want to delete this document?")) {
-              if (onClose) onClose(document.id, true);
-            }
-          }}
+          onClick={() => setShowDeleteConfirm(true)}
           className="flex-1 flex items-center justify-center space-x-1 py-2 rounded border border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors text-xs font-medium"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -174,6 +214,34 @@ export function DocumentDetailPanel({ document, onClose }: any) {
         </button>
       </div>
 
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[#1e2329] border border-[#30363d] rounded-xl shadow-2xl p-5 w-full max-w-sm flex flex-col">
+            <h3 className="text-sm font-bold text-foreground mb-2">Delete Document</h3>
+            <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
+              Are you sure you want to delete this document and its extracted chunks? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 rounded text-xs font-medium text-foreground hover:bg-[#30363d] transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  if (onClose) onClose(document.id, true);
+                }}
+                className="px-4 py-2 rounded text-xs font-medium bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-colors border border-red-500/50"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

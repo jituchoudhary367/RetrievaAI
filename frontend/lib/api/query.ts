@@ -50,3 +50,10 @@ export async function streamQuery(
 
   await parseSseStream(response, onChunk);
 }
+
+export async function getSuggestedQuestions(): Promise<string[]> {
+  return apiFetch<string[]>("/api/suggest-questions", {
+    method: "GET",
+  });
+}
+

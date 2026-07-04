@@ -1,8 +1,9 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { getSuggestedQuestions } from '@/lib/api/query';
 
-const SUGGESTIONS = [
+const DEFAULT_SUGGESTIONS = [
   "How does hybrid search work?",
   "What is CRAG?",
   "How is reranking done?",
@@ -10,13 +11,29 @@ const SUGGESTIONS = [
 ];
 
 export function SuggestedFollowUps({ onPick }: { onPick: (q: string) => void }) {
+  const [suggestions, setSuggestions] = React.useState<string[]>(DEFAULT_SUGGESTIONS);
+
+  React.useEffect(() => {
+    import('@/lib/api/query').then(({ getSuggestedQuestions }) => {
+      getSuggestedQuestions()
+        .then((data) => {
+          if (data && data.length > 0) {
+            setSuggestions(data);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to load dynamic suggestions:", err);
+        });
+    });
+  }, []);
+
   return (
     <div className="flex flex-col space-y-3 mt-6">
       <div className="text-xs text-muted-foreground">
         You can ask about:
       </div>
       <div className="flex flex-wrap gap-2">
-        {SUGGESTIONS.map((q, i) => (
+        {suggestions.map((q, i) => (
           <button
             key={i}
             onClick={() => onPick(q)}

@@ -12,6 +12,7 @@ export function IngestionDetailPanel({ job, onClose }: any) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loadingChunks, setLoadingChunks] = useState(false);
   const [loadingMetadata, setLoadingMetadata] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     // Reset state when job changes
@@ -207,17 +208,42 @@ export function IngestionDetailPanel({ job, onClose }: any) {
       {/* Footer Buttons Fixed */}
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-[#0d1117] border-t border-[#30363d] flex items-center justify-between space-x-2">
         <button 
-          onClick={async () => {
-            if (confirm("Are you sure you want to delete this job and its ingested data?")) {
-              if (onClose) onClose(job.id, true);
-            }
-          }}
+          onClick={() => setShowDeleteConfirm(true)}
           className="flex-1 flex items-center justify-center space-x-1 py-1.5 rounded border border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors text-[10px] font-medium"
         >
           <Trash2 className="h-3 w-3" />
           <span>Delete</span>
         </button>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[#1e2329] border border-[#30363d] rounded-xl shadow-2xl p-5 w-full max-w-sm flex flex-col">
+            <h3 className="text-sm font-bold text-foreground mb-2">Delete Ingestion Job</h3>
+            <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
+              Are you sure you want to delete this job and its ingested data? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 rounded text-xs font-medium text-foreground hover:bg-[#30363d] transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  if (onClose) onClose(job.id, true);
+                }}
+                className="px-4 py-2 rounded text-xs font-medium bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-colors border border-red-500/50"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

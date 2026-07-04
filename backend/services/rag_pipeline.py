@@ -150,7 +150,6 @@ class RAGPipeline:
         used_web_search = False
 
         if request.force_web_search:
-            # ONLY do web search
             try:
                 from app.models import RetrievalSource
                 web_results = self._web_search.search(request.query, top_k=3)
@@ -173,16 +172,16 @@ class RAGPipeline:
                 used_web_search = True
             except Exception as e:
                 logger.warning(f"Web search failed in pipeline: {e}")
-        else:
-            # ONLY do document retrieval
-            for sq in sub_queries:
-                chunks = self._retriever.retrieve(
-                    query=sq,
-                    user_id=user_id,
-                    top_k=request.top_k,
-                    filters=request.filters or [],
-                )
-                all_chunks.extend(chunks)
+                
+        # Always do document retrieval
+        for sq in sub_queries:
+            chunks = self._retriever.retrieve(
+                query=sq,
+                user_id=user_id,
+                top_k=request.top_k,
+                filters=request.filters or [],
+            )
+            all_chunks.extend(chunks)
 
         seen_ids: set = set()
         unique_chunks: List[RetrievedChunk] = []
@@ -350,11 +349,12 @@ class RAGPipeline:
                 used_web_search = True
             except Exception as e:
                 logger.warning(f"Web search failed in pipeline: {e}")
-        else:
-            for sq in sub_queries:
-                all_chunks.extend(
-                    self._retriever.retrieve(query=sq, user_id=user_id, top_k=request.top_k, filters=request.filters or [])
-                )
+                
+        # Always do document retrieval
+        for sq in sub_queries:
+            all_chunks.extend(
+                self._retriever.retrieve(query=sq, user_id=user_id, top_k=request.top_k, filters=request.filters or [])
+            )
 
         seen_ids: set = set()
         unique_chunks: List[RetrievedChunk] = []

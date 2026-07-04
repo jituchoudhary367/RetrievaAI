@@ -43,6 +43,8 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     fetchDocuments();
+    const interval = setInterval(fetchDocuments, 5000);
+    return () => clearInterval(interval);
   }, [fetchDocuments]);
 
   const selectedDoc = documents.find(d => d.id === selectedDocId);

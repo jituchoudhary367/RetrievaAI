@@ -11,8 +11,10 @@ export function ConversationList({
   activeId: string | null; 
   onSelect: (id: string) => void;
 }) {
-  const today = new Date().setHours(0,0,0,0);
-  const sevenDaysAgo = new Date(today - 7 * 24 * 60 * 60 * 1000);
+  const todayDate = new Date();
+  todayDate.setHours(0,0,0,0);
+  const today = todayDate.getTime();
+  const sevenDaysAgo = today - 7 * 24 * 60 * 60 * 1000;
   
   const todayConvs = conversations.filter(c => c.updatedAt >= today);
   const previousConvs = conversations.filter(c => c.updatedAt >= sevenDaysAgo && c.updatedAt < today);

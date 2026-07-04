@@ -61,7 +61,7 @@ export function Sidebar({
 
   const activeId = activeConversation?.sessionId || null;
 
-  const NavItem = ({ href, icon: Icon, label, disabled = false }) => {
+  const NavItem = ({ href, icon: Icon, label, disabled = false }: { href: string, icon: any, label: string, disabled?: boolean }) => {
     const isActive = pathname === href;
     return (
       <Link 

@@ -142,8 +142,8 @@ class PdfExtractor(BaseExtractor):
                     warnings.append(f"Page {i + 1}: text extraction failed ({exc})")
                     page_texts.append("")
 
-        metadata = self._build_metadata(file_path, info, num_pages)
-        return page_texts, metadata, warnings
+            metadata = self._build_metadata(file_path, info, num_pages)
+            return page_texts, metadata, warnings
 
     # ------------------------------------------------------------------
     # Table extraction via pdfplumber

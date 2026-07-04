@@ -144,7 +144,7 @@ async def get_document(
 @router.delete("/{document_id}", status_code=200)
 async def delete_document(
     document_id: str,
-    current_user: User = Depends(require_role("TENANT_ADMIN", "EDITOR")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     doc = await _get_doc_or_404(db, document_id, current_user.id)
@@ -193,7 +193,6 @@ async def get_document_chunks(
             collection_name=cfg.qdrant.collection_name,
             scroll_filter=Filter(must=[
                 FieldCondition(key="document_id", match=MatchValue(value=document_id)),
-                FieldCondition(key="user_id", match=MatchValue(value=current_user.id))
             ]),
             limit=200,
             with_payload=True,

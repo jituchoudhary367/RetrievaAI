@@ -66,6 +66,8 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchAll();
+    const interval = setInterval(fetchAll, 5000);
+    return () => clearInterval(interval);
   }, [fetchAll]);
 
   return (

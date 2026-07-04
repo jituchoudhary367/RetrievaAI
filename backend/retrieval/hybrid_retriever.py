@@ -107,7 +107,7 @@ class HybridRetriever:
                 logger.error("Failed to embed query: %s", exc)
 
         # 2. Dense search
-        user_filter = MetadataFilter(key="user_id", value=user_id, match_type="exact")
+        user_filter = MetadataFilter(field="user_id", value=user_id, operator="eq")
         merged_filters = [user_filter]
         if filters:
             merged_filters.extend(filters)
@@ -127,6 +127,7 @@ class HybridRetriever:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Qdrant dense search failed: %s", exc)
 
+        sparse_hits: List[Tuple[str, float]] = []
         if retrieval_mode in ("hybrid", "keyword"):
             try:
                 bm25 = self._get_bm25(user_id)

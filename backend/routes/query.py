@@ -71,12 +71,14 @@ async def _persist_conversation(
             conv.updated_at = datetime.utcnow()
             
             db.add(ConversationMessage(
+                user_id=user_id,
                 conversation_id=conv.id,
                 role="user",
                 content=user_query
             ))
             
             db.add(ConversationMessage(
+                user_id=user_id,
                 conversation_id=conv.id,
                 role="assistant",
                 content=assistant_response
@@ -214,12 +216,10 @@ async def execute_query_stream(
             if not user_api_keys["SERPER_API_KEY"] and serper:
                 user_api_keys["SERPER_API_KEY"] = serper
                 from services.user_preferences import get_user_preferences
-                import asyncio
                 asyncio.create_task(get_user_preferences().set(current_user.id, "SERPER_API_KEY", serper))
             if not user_api_keys["GROQ_API_KEY"] and groq:
                 user_api_keys["GROQ_API_KEY"] = groq
                 from services.user_preferences import get_user_preferences
-                import asyncio
                 asyncio.create_task(get_user_preferences().set(current_user.id, "GROQ_API_KEY", groq))
                 
         if not user_api_keys.get("GROQ_API_KEY"):
@@ -234,9 +234,9 @@ async def execute_query_stream(
         try:
             async for chunk in pipeline.stream(request, user_id=current_user.id, user_api_keys=user_api_keys):
                 # Accumulate the response to persist after stream completes
-                if chunk.event == "content":
-                    full_response_text += chunk.content_delta or ""
-                elif chunk.event == "metadata":
+                if chunk.event == "token":
+                    full_response_text += chunk.delta or ""
+                elif chunk.event == "end":
                     metadata_chunk = chunk
                 elif chunk.event == "citation":
                     citations.append(chunk.citation)
@@ -291,5 +291,47 @@ async def execute_query_stream(
             yield f"data: {err.model_dump_json(by_alias=True)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@router.get("/suggest-questions")
+async def get_suggested_questions(current_user: User = Depends(get_current_user)) -> list[str]:
+    try:
+        from db.models.document import Document
+        from sqlalchemy import select
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(Document.title)
+                .where(Document.user_id == current_user.id)
+                .order_by(Document.uploaded_at.desc())
+                .limit(3)
+            )
+            docs = [d for d in result.scalars().all() if d]
+            
+        if not docs:
+            return [
+                "How does hybrid search work?",
+                "What is CRAG?",
+                "How is reranking done?",
+                "Show me chunking strategies"
+            ]
+            
+        questions = [
+            f"What is the main topic of '{docs[0]}'?",
+            f"Summarize the key points in '{docs[0]}'",
+        ]
+        if len(docs) > 1:
+            questions.append(f"How do '{docs[0]}' and '{docs[1]}' compare?")
+        else:
+            questions.append(f"Are there any action items mentioned in '{docs[0]}'?")
+            
+        questions.append("Can you extract the most important entities from my documents?")
+        return questions[:4]
+    except Exception as exc:
+        logger.error(f"Failed to get suggested questions: {exc}")
+        return [
+            "How does hybrid search work?",
+            "What is CRAG?",
+            "How is reranking done?",
+            "Show me chunking strategies"
+        ]
 
 __all__ = ["router"]

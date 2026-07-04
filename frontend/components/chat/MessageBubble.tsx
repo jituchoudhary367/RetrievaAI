@@ -4,10 +4,11 @@ import React from "react";
 import { ChatMessage, Citation } from "../../lib/types/models";
 import { cn } from "../../lib/utils";
 import { CitationList } from "./CitationList";
-import { PipelineVisualization } from "./PipelineVisualization";
 import { MessageActions } from "./MessageActions";
 import { Hexagon, User as UserIcon } from "lucide-react";
 import { getUserInfo } from "../../lib/auth/session";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export function MessageBubble({ 
   message, 
@@ -30,18 +31,21 @@ export function MessageBubble({
 
   if (isUser) {
     return (
-      <div className="flex w-full justify-end">
-        <div className="flex flex-col max-w-[80%]">
-          {/* User Bubble */}
-          <div className="bg-[#1e2329] border border-[#30363d] rounded-2xl rounded-tr-sm px-5 py-4 text-sm leading-relaxed text-foreground shadow-sm animate-fade-in">
-            <div className="whitespace-pre-wrap font-sans">{message.content}</div>
-          </div>
-          {/* Avatar & Timestamp below, right aligned (or could be above) */}
-          <div className="flex items-center justify-end mt-2 space-x-2 text-xs text-muted-foreground">
-            <span>{formatTime(message.timestamp)}</span>
-            <div className="h-6 w-6 rounded-full overflow-hidden flex-shrink-0 border border-[#30363d]">
-              <img src={avatarUrl} alt="User Avatar" className="h-full w-full object-cover" />
+      <div className="flex w-full justify-end animate-fade-in group mt-4">
+        <div className="flex items-start max-w-[85%] justify-end">
+          <div className="flex flex-col items-end min-w-0">
+            {/* User Bubble */}
+            <div className="bg-[#2b313a] border border-[#3a414b] rounded-2xl rounded-tr-sm px-4 py-3 text-[15px] leading-relaxed text-foreground shadow-sm overflow-x-auto">
+              <div className="whitespace-pre-wrap font-sans break-words">{message.content}</div>
             </div>
+            {/* Timestamp hidden until hover */}
+            <span className="text-[10px] text-muted-foreground mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              {formatTime(message.timestamp)}
+            </span>
+          </div>
+          {/* User Avatar */}
+          <div className="flex items-center justify-center relative w-8 h-8 ml-3 flex-shrink-0 rounded-full overflow-hidden border border-[#30363d]">
+            <img src={avatarUrl} alt="User" className="h-full w-full object-cover" />
           </div>
         </div>
       </div>
@@ -49,25 +53,27 @@ export function MessageBubble({
   }
 
   return (
-    <div className="flex w-full justify-start animate-fade-in">
-      <div className="flex items-start max-w-full">
+    <div className="flex w-full justify-start animate-fade-in mt-6 mb-2">
+      <div className="flex items-start max-w-[90%]">
         {/* Assistant Avatar */}
-        <div className="flex items-center justify-center relative w-8 h-8 mr-4 mt-1 flex-shrink-0">
+        <div className="flex items-center justify-center relative w-8 h-8 mr-4 mt-0.5 flex-shrink-0">
           <Hexagon className="w-8 h-8 text-[#10b981] absolute fill-[#10b981]/10" />
           <span className="text-[10px] font-bold text-[#10b981] relative z-10">AI</span>
         </div>
 
         {/* Assistant Content */}
         <div className="flex flex-col flex-1 min-w-0">
-          <div className="text-sm leading-relaxed text-foreground/90 font-sans">
-            <div className="whitespace-pre-wrap">{message.content}</div>
+          <div className="text-[15px] leading-relaxed text-foreground/90 font-sans break-words overflow-x-auto prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
           </div>
-          
-          <PipelineVisualization metadata={message.metadata as any} />
-          {citations && citations.length > 0 && <CitationList citations={citations} />}
+          {citations && citations.length > 0 && <div className="mt-4"><CitationList citations={citations} /></div>}
 
           {onRegenerate && (
-            <MessageActions message={message} onRegenerate={onRegenerate} />
+            <div className="mt-2">
+              <MessageActions message={message} onRegenerate={onRegenerate} />
+            </div>
           )}
         </div>
       </div>

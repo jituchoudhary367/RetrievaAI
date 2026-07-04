@@ -270,6 +270,7 @@ class QdrantIndexer:
             payload = {
                 "chunk_id": chunk.chunk_id,
                 "document_id": chunk.document_id,
+                "user_id": chunk.user_id,
                 "text": chunk.text,
                 "chunk_index": chunk.chunk_index,
                 **chunk.metadata,

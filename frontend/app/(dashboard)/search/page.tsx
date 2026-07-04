@@ -29,7 +29,7 @@ export default function SearchPage() {
 
   const handleSearch = () => {
     if (query.trim()) {
-      search({ query, intent: activeTab === 'Code' ? 'code_search' : activeTab === 'Web' ? 'web_search' : undefined });
+      search({ query });
     }
   };
 

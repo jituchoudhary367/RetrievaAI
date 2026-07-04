@@ -39,32 +39,52 @@ export function PipelineVisualization({ metadata }: { metadata?: ResponseMetadat
           colorClass="border-green-500/30 text-green-500" 
         />
         <Arrow />
-        <Node 
-          icon={Search} 
-          title="Retriever" 
-          subtitle="(Hybrid Search)" 
-          colorClass="border-blue-500/30 text-blue-500" 
-        />
-        <Arrow />
-        <Node 
-          icon={FileText} 
-          title="Relevant Documents" 
-          colorClass="border-yellow-500/30 text-yellow-500" 
-        />
-        <Arrow />
-        <Node 
-          icon={MessageSquare} 
-          title="Augmented Prompt" 
-          colorClass="border-purple-500/30 text-purple-500" 
-        />
-        <Arrow />
-        <Node 
-          icon={Sparkles} 
-          title="LLM" 
-          subtitle="(Generator)" 
-          colorClass="border-orange-500/30 text-orange-500" 
-        />
-        <Arrow />
+        
+        {metadata.used_cache ? (
+          <>
+            <Node 
+              icon={CheckCircle2} 
+              title="Cache Hit" 
+              colorClass="border-emerald-500/30 text-emerald-500" 
+            />
+            <Arrow />
+          </>
+        ) : (
+          <>
+            {(metadata.intent !== "direct_answer" && metadata.intent !== "greeting") && (
+              <>
+                <Node 
+                  icon={Search} 
+                  title="Retriever" 
+                  subtitle={metadata.used_web_search ? "(Web + Hybrid)" : "(Hybrid Search)"} 
+                  colorClass="border-blue-500/30 text-blue-500" 
+                />
+                <Arrow />
+                <Node 
+                  icon={FileText} 
+                  title="Relevant Documents" 
+                  colorClass="border-yellow-500/30 text-yellow-500" 
+                />
+                <Arrow />
+              </>
+            )}
+            
+            <Node 
+              icon={MessageSquare} 
+              title="Augmented Prompt" 
+              colorClass="border-purple-500/30 text-purple-500" 
+            />
+            <Arrow />
+            <Node 
+              icon={Sparkles} 
+              title="LLM" 
+              subtitle="(Generator)" 
+              colorClass="border-orange-500/30 text-orange-500" 
+            />
+            <Arrow />
+          </>
+        )}
+
         <Node 
           icon={CheckCircle2} 
           title="Answer" 

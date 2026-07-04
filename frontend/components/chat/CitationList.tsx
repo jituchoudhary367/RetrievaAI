@@ -7,7 +7,7 @@ export function CitationList({ citations }: { citations: Citation[] }) {
 
   return (
     <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-      {citations.map((citation) => (
+      {citations.map((citation, index) => (
         <a
           key={citation.citationId}
           href={citation.url || "#"}
@@ -17,9 +17,9 @@ export function CitationList({ citations }: { citations: Citation[] }) {
           className="group inline-flex items-center gap-1 hover:text-foreground transition-colors"
         >
           <Badge tone="neutral" className="px-1.5 py-0 group-hover:bg-primary/20 cursor-pointer">
-            [{citation.citationId}]
+            [{index + 1}]
           </Badge>
-          <span className="truncate max-w-[150px]">{citation.documentId}</span>
+          <span className="truncate max-w-[200px] text-[10px]">{citation.source || "Document"}</span>
         </a>
       ))}
     </div>

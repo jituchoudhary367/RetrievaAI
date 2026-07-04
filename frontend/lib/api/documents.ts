@@ -14,4 +14,8 @@ export const documentsApi = {
   deleteDocument: async (id: string): Promise<void> => {
     return apiFetch<void>(`/api/documents/${id}`, { method: "DELETE" });
   },
+
+  getChunks: async (id: string): Promise<any[]> => {
+    return apiFetch<any[]>(`/api/documents/${id}/chunks`, { method: "GET" });
+  },
 };
