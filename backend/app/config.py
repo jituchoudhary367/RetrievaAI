@@ -260,8 +260,8 @@ class DatabaseSettings(BaseSettings):
     name: str = Field(default="rag_db")
     user: str = Field(default="rag_user")
     password: str = Field(default="rag_password", repr=False)
-    pool_size: int = Field(default=10, ge=1)
-    max_overflow: int = Field(default=10, ge=0)
+    pool_size: int = Field(default=5, ge=1)
+    max_overflow: int = Field(default=5, ge=0)
 
     @property
     def url(self) -> str:
