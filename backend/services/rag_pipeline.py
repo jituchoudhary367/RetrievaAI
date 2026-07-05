@@ -448,8 +448,12 @@ class RAGPipeline:
         citations: List[Citation] = []
 
         for i, chunk in enumerate(chunks, start=1):
+            doc_title = chunk.metadata.get("title", "Unknown Document")
+            page_info = chunk.metadata.get("page")
+            page_str = f", Page {page_info}" if page_info else ""
+            
             parts.append(
-                f"[{i}] (chunk_id={chunk.chunk_id})\n{chunk.text}"
+                f"[{i}] (Document: {doc_title}{page_str}, chunk_id={chunk.chunk_id})\n{chunk.text}"
             )
             citations.append(
                 Citation(

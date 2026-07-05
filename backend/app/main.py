@@ -179,6 +179,11 @@ def create_app() -> FastAPI:
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/docs")
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        from fastapi.responses import Response
+        return Response(status_code=204)
+
     # ── Routers ───────────────────────────────────────────────────────────
     from routes.health import router as health_router
     from routes.search import router as search_router

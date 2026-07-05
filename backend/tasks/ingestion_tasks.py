@@ -154,11 +154,19 @@ def run_ingestion_job(job_id: str) -> None:
         if not source_path.exists() and job.blob_path:
             # Write blob to a temp file for the pipeline
             import tempfile  # noqa: PLC0415
+            import shutil  # noqa: PLC0415
             blob_bytes = blob_storage.load(job.blob_path, user_id=job.user_id)
-            suffix = Path(job.source_path_or_url).suffix or ".bin"
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(blob_bytes)
-                source_path = Path(tmp.name)
+            tmp_dir = tempfile.mkdtemp()
+            # Try to get the original filename from source_path_or_url
+            original_filename = Path(job.source_path_or_url).name
+            if not original_filename:
+                suffix = Path(job.source_path_or_url).suffix or ".bin"
+                original_filename = f"document{suffix}"
+            
+            tmp_path = Path(tmp_dir) / original_filename
+            with open(tmp_path, "wb") as tmp_file:
+                tmp_file.write(blob_bytes)
+            source_path = tmp_path
 
         _log_and_publish(db, redis, job_id, "INFO", f"Extracting: {job.source_path_or_url}")
         db.commit()
@@ -223,11 +231,17 @@ def run_ingestion_job(job_id: str) -> None:
                 job.status = "failed"
                 job.error_message = str(exc)
                 job.completed_at = datetime.now(timezone.utc)
-            _log_and_publish(db, redis, job_id, "ERROR", f"Worker error: {exc}")
-            db.commit()
+                db.commit()
+                _log_and_publish(db, redis, job_id, "ERROR", f"Crashed: {job.error_message}")
         except Exception:
-            pass
+            logger.exception("Failed to update job status after crash.")
     finally:
+        # Clean up temp directory if it was created for blob download
+        if 'tmp_dir' in locals():
+            try:
+                shutil.rmtree(tmp_dir)
+            except Exception as e:
+                logger.warning("Failed to clean up temp dir %s: %s", tmp_dir, e)
         db.close()
         engine.dispose()
 

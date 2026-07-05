@@ -36,7 +36,7 @@ from app.models import DocumentMetadata
 logger = logging.getLogger(__name__)
 
 DEFAULT_ENCODING_FALLBACKS: Tuple[str, ...] = ("utf-8", "utf-8-sig", "latin-1")
-DEFAULT_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+DEFAULT_MAX_FILE_SIZE_BYTES = 150 * 1024 * 1024  # 150 MB
 
 
 # --------------------------------------------------------------------------- #

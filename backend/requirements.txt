@@ -11,7 +11,7 @@
 #
 # Includes every optional extra (matches the Dockerfile's default
 # `INSTALL_EXTRAS=all`), so every extractor/embedder/reranker backend works
-# out of the box: OCR (pdf2image/pytesseract), PDF (pypdf/pdfplumber), HTML
+# out of the box: OCR (paddleocr), PDF (pymupdf), HTML
 # (beautifulsoup4/lxml/trafilatura), DOCX (python-docx), embeddings
 # (openai/sentence-transformers/cohere), and exact token counting (tiktoken).
 
@@ -35,12 +35,11 @@ openai==1.54.0
 sentence-transformers==3.2.0
 cohere==5.11.0
 
-# --- PDF extraction + OCR fallback (pipeline/extractors/pdf_extractor.py) ---
-pypdf==5.1.0
-pdfplumber==0.11.0
-pdf2image==1.17.0
-pytesseract==0.3.13
+pymupdf==1.23.26
+paddleocr==2.7.3
+paddlepaddle==3.3.1
 Pillow==11.0.0
+numpy<2.0.0
 
 # --- HTML extraction (pipeline/extractors/html_extractor.py) ---
 beautifulsoup4==4.12.0
@@ -51,7 +50,7 @@ trafilatura==1.12.0
 python-docx==1.1.0
 
 # --- Standalone-image OCR (pipeline/extractors/image_extractor.py) ---
-# Pillow and pytesseract already pinned above; shared with pdf_extractor.
+# Pillow already pinned above; shared with pdf_extractor.
 
 # --- Exact token counting (pipeline/chunker.py, pipeline/embedder.py) ---
 tiktoken==0.8.0

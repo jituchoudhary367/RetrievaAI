@@ -19,7 +19,8 @@ if settings.oauth.google_client_id:
         client_id=settings.oauth.google_client_id,
         client_secret=settings.oauth.google_client_secret,
         client_kwargs={
-            'scope': 'openid email profile'
+            'scope': 'openid email profile',
+            'timeout': 30.0
         }
     )
 

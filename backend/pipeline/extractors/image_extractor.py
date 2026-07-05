@@ -50,7 +50,7 @@ class ImageExtractor(BaseExtractor):
         from app.config import get_settings
         settings = get_settings()
         self.max_file_size_bytes = max_file_size_bytes or getattr(
-            settings, "max_ingest_file_size_bytes", 50 * 1024 * 1024
+            settings, "max_ingest_file_size_bytes", 150 * 1024 * 1024
         )
 
     # ------------------------------------------------------------------

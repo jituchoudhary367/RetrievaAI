@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { setAuthToken } from "@/lib/auth/session";
 import { Hexagon } from "lucide-react";
 
-export default function OAuthCallbackPage() {
+function OAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -35,5 +35,17 @@ export default function OAuthCallbackPage() {
         Please wait while we log you in securely.
       </p>
     </div>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center space-y-6">
+        <h2 className="text-xl font-bold text-white">Loading...</h2>
+      </div>
+    }>
+      <OAuthCallbackContent />
+    </Suspense>
   );
 }

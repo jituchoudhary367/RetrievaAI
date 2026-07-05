@@ -67,11 +67,11 @@ sentence-transformers = { version = "^3.2.0", optional = true }
 cohere = { version = "^5.11.0", optional = true }
 
 # --- Optional: PDF extraction/OCR (pipeline/extractors/pdf_extractor.py) ---
-pypdf = { version = "^5.1.0", optional = true }
-pdfplumber = { version = "^0.11.0", optional = true }
-pdf2image = { version = "^1.17.0", optional = true }
-pytesseract = { version = "^0.3.13", optional = true }
+pymupdf = { version = "^1.23.0", optional = true }
+paddleocr = { version = "^2.7.0", optional = true }
+paddlepaddle = { version = "^3.3.1", optional = true }
 Pillow = { version = "^11.0.0", optional = true }
+numpy = { version = "<2.0.0", optional = true }
 
 # --- Optional: HTML extraction (pipeline/extractors/html_extractor.py) ---
 beautifulsoup4 = { version = "^4.12.0", optional = true }
@@ -97,7 +97,7 @@ mypy = "^1.13.0"
 # given deployment actually needs, instead of forcing every heavy ML/OCR
 # library on every install.
 [tool.poetry.extras]
-pdf = ["pypdf", "pdfplumber", "pdf2image", "pytesseract", "Pillow"]
+pdf = ["pymupdf", "paddleocr", "paddlepaddle", "Pillow", "numpy"]
 html = ["beautifulsoup4", "lxml", "trafilatura"]
 docx = ["python-docx"]
 embeddings-openai = ["openai"]
@@ -105,7 +105,7 @@ embeddings-hf = ["sentence-transformers"]
 embeddings-cohere = ["cohere"]
 tokens = ["tiktoken"]
 all = [
-    "pypdf", "pdfplumber", "pdf2image", "pytesseract", "Pillow",
+    "pymupdf", "paddleocr", "paddlepaddle", "Pillow", "numpy",
     "beautifulsoup4", "lxml", "trafilatura",
     "python-docx",
     "openai", "sentence-transformers", "cohere",

@@ -91,26 +91,28 @@ async def upload_and_ingest(
         raise HTTPException(status_code=400, detail="No filename provided")
         
     try:
-        # Create a temporary file with the original extension
-        file_ext = Path(file.filename).suffix
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
-            tmp_path = Path(tmp_file.name)
-            
-            # Read and write chunks
-            while content := await file.read(1024 * 1024):  # 1MB chunks
-                tmp_file.write(content)
-        
-        logger.info("Received file upload: %s, saved to %s", file.filename, tmp_path)
-
-        # Run ingestion
-        report = pipeline.ingest_path(tmp_path, force=True) 
-
-        # Delete the temp file after ingestion
+        # Create a temporary directory to preserve the original filename
+        tmp_dir = tempfile.mkdtemp()
         try:
-            os.remove(tmp_path)
-            logger.info("Cleaned up temp file: %s", tmp_path)
-        except Exception as e:
-            logger.warning("Failed to clean up temp file %s: %s", tmp_path, e)
+            tmp_path = Path(tmp_dir) / file.filename
+            with open(tmp_path, "wb") as tmp_file:
+                # Read and write chunks
+                while content := await file.read(1024 * 1024):  # 1MB chunks
+                    tmp_file.write(content)
+            
+            logger.info("Received file upload: %s, saved to %s", file.filename, tmp_path)
+
+            # Run ingestion
+            report = pipeline.ingest_path(tmp_path, force=True) 
+
+        finally:
+            # Delete the temp directory after ingestion
+            import shutil
+            try:
+                shutil.rmtree(tmp_dir)
+                logger.info("Cleaned up temp directory: %s", tmp_dir)
+            except Exception as e:
+                logger.warning("Failed to clean up temp directory %s: %s", tmp_dir, e)
 
         # Overwrite the path in the report with the original filename for the frontend
         for result in report.results:
