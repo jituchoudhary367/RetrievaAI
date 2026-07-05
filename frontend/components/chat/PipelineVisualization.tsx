@@ -40,7 +40,7 @@ export function PipelineVisualization({ metadata }: { metadata?: ResponseMetadat
         />
         <Arrow />
         
-        {metadata.used_cache ? (
+        {metadata.usedCache ? (
           <>
             <Node 
               icon={CheckCircle2} 
@@ -56,7 +56,7 @@ export function PipelineVisualization({ metadata }: { metadata?: ResponseMetadat
                 <Node 
                   icon={Search} 
                   title="Retriever" 
-                  subtitle={metadata.used_web_search ? "(Web + Hybrid)" : "(Hybrid Search)"} 
+                  subtitle={metadata.usedWebSearch ? "(Web + Hybrid)" : "(Hybrid Search)"} 
                   colorClass="border-blue-500/30 text-blue-500" 
                 />
                 <Arrow />
