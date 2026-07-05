@@ -33,10 +33,6 @@ async def oauth_login(provider: str, request: Request):
     
     # The callback URI needs to point back to the backend securely
     redirect_uri = str(request.url_for('oauth_callback', provider=provider))
-    
-    # Ensure production URLs use HTTPS even if proxy headers are missing
-    if "localhost" not in redirect_uri and redirect_uri.startswith("http://"):
-        redirect_uri = redirect_uri.replace("http://", "https://", 1)
     return await client.authorize_redirect(request, redirect_uri, prompt="select_account")
 
 @router.get("/{provider}/callback")

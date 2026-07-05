@@ -81,6 +81,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+    
+    # ── Proxy Headers ─────────────────────────────────────────────────────
+    # Required for Authlib to verify the callback URL scheme (https) properly
+    # when hosted behind a reverse proxy like Render.
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
+
     # ── CORS ──────────────────────────────────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
@@ -91,7 +98,10 @@ def create_app() -> FastAPI:
     )
     
     app.add_middleware(
-        SessionMiddleware, secret_key=settings.security.jwt_secret_key
+        SessionMiddleware, 
+        secret_key=settings.security.jwt_secret_key,
+        same_site="lax",
+        https_only=settings.environment == "production"
     )
 
     @app.middleware("http")
