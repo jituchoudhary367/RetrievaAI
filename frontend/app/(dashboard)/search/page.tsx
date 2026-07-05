@@ -11,6 +11,8 @@ import { SearchResult, SearchRequest } from '@/lib/types/models';
 import RequireAuth from '@/components/auth/RequireAuth';
 import { useSearch } from '@/lib/hooks/useSearch';
 
+export const dynamic = "force-dynamic";
+
 export default function SearchPage() {
   const searchParams = useSearchParams();
   const q = searchParams.get('q');

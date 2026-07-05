@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { postVerifyEmail } from "@/lib/api/auth";
 
+export const dynamic = "force-dynamic";
+
 export default function VerifyEmailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();

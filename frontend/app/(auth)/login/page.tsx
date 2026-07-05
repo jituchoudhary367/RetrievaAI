@@ -12,6 +12,8 @@ import { VerifyEmailNotice } from "@/components/auth/VerifyEmailNotice";
 import { Mail, Shield, Check, EyeOff, Eye, Lock, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();

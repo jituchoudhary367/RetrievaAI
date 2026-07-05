@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 export default function CheckEmailPage() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "your email address";

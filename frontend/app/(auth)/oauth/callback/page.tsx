@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { setAuthToken } from "@/lib/auth/session";
 import { Hexagon } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 function OAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();

@@ -7,6 +7,8 @@ import { setAuthToken } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+export const dynamic = "force-dynamic";
+
 export default function AcceptInvitePage() {
   const router = useRouter();
   const searchParams = useSearchParams();

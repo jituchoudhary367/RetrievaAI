@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Mail, Shield, Check, EyeOff, Eye, Lock, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
