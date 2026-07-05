@@ -1,11 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
+
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default function CheckEmailPage() {
+function CheckEmailPageContent() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "your email address";
 
@@ -36,5 +38,13 @@ export default function CheckEmailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CheckEmailPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <CheckEmailPageContent />
+    </Suspense>
   );
 }

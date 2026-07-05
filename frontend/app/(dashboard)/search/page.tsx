@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TopBar } from '@/components/layout/TopBar';
@@ -13,7 +15,7 @@ import { useSearch } from '@/lib/hooks/useSearch';
 
 export const dynamic = "force-dynamic";
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const q = searchParams.get('q');
   
@@ -72,5 +74,13 @@ export default function SearchPage() {
         </div>
       </div>
     </RequireAuth>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <SearchPageContent />
+    </Suspense>
   );
 }
