@@ -33,6 +33,18 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.9
 
+# --- Database (Postgres + async ORM) ---
+sqlalchemy>=2.0.0
+asyncpg>=0.30.0
+psycopg2-binary>=2.9.0
+alembic>=1.14.0
+
+# --- Async job queue ---
+rq>=2.0.0
+
+# --- Auth / Security (Additional) ---
+pyotp>=2.9.0
+qrcode[pil]>=8.0.0
 # --- Embedding / LLM providers (pipeline/embedder.py, services/) ---
 openai==1.54.0
 sentence-transformers==3.2.0
