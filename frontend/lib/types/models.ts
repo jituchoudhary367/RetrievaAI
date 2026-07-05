@@ -1,4 +1,4 @@
-export type QueryIntent = "simple_qa" | "complex_qa" | "code_search" | "web_search" | "hybrid_search";
+export type QueryIntent = "simple_qa" | "complex_qa" | "code_search" | "web_search" | "hybrid_search" | "direct_answer" | "greeting";
 export type RelevanceGrade = "good" | "bad" | "need_web";
 export type RetrievalSource = "vector" | "bm25" | "web" | "code" | "cache";
 export type MessageRole = "system" | "user" | "assistant" | "tool";
