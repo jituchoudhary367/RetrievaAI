@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { ResponseMetadata } from '../../lib/types/models';
 import { useHealthPolling } from '../../lib/hooks/useHealthPolling';
-import { getUserInfo } from '../../lib/auth/session';
+import { getUserInfo, clearAuthToken } from '../../lib/auth/session';
 import { apiFetch } from '../../lib/api/client';
 import { useRouter } from 'next/navigation';
 
@@ -37,6 +37,8 @@ export function TopBar({ title, subtitle, searchPlaceholder, onUpdateTitle, edit
   const [showNotifications, setShowNotifications] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const notifRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const { health, error: healthError } = useHealthPolling(30000);
   const userInfo = getUserInfo();
   const router = useRouter();
@@ -66,6 +68,32 @@ export function TopBar({ title, subtitle, searchPlaceholder, onUpdateTitle, edit
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Close profile dropdown on outside click or escape
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfileDropdown(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowProfileDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    setShowProfileDropdown(false);
+    clearAuthToken();
+    router.push('/login');
+  };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -150,31 +178,7 @@ export function TopBar({ title, subtitle, searchPlaceholder, onUpdateTitle, edit
         )}
       </div>
 
-      {/* Center: Global Search */}
-      <div className="flex-1 max-w-md hidden md:block">
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-          </div>
-          <input 
-            type="text" 
-            placeholder={searchPlaceholder || "Search anything..."} 
-            value={globalSearchQuery}
-            onChange={(e) => setGlobalSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && globalSearchQuery.trim()) {
-                router.push(`/search?q=${encodeURIComponent(globalSearchQuery.trim())}`);
-              }
-            }}
-            className="block w-full pl-10 pr-12 py-1.5 border border-[#30363d] rounded-md leading-5 bg-[#161b22] text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:bg-background focus:border-primary transition-colors" 
-          />
-          <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
-            <div className="flex items-center space-x-1 bg-[#21262d] text-muted-foreground border border-[#30363d] rounded px-1.5 py-0.5 text-[10px] font-medium">
-              <span>Enter</span>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* Right side controls */}
       <div className="flex-1 flex items-center justify-end space-x-4">
@@ -243,11 +247,37 @@ export function TopBar({ title, subtitle, searchPlaceholder, onUpdateTitle, edit
           </div>
           
           {/* Avatar — real user photo or initials */}
-          <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0 border border-[#30363d] cursor-pointer bg-[#21262d] flex items-center justify-center">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-xs font-bold text-foreground">{initials}</span>
+          <div className="relative" ref={profileRef}>
+            <button
+              onClick={() => setShowProfileDropdown(prev => !prev)}
+              aria-expanded={showProfileDropdown}
+              aria-haspopup="true"
+              className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0 border border-[#30363d] bg-[#21262d] flex items-center justify-center hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs font-bold text-foreground">{initials}</span>
+              )}
+            </button>
+
+            {/* Profile Dropdown */}
+            {showProfileDropdown && (
+              <div className="absolute right-0 top-10 mt-1 w-48 bg-[#161b22] border border-[#30363d] rounded-md shadow-lg overflow-hidden z-50 py-1">
+                <button
+                  onClick={() => { setShowProfileDropdown(false); router.push('/settings'); }}
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors"
+                >
+                  Settings
+                </button>
+                <div className="h-px bg-[#30363d] my-1" />
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-muted/50 transition-colors"
+                >
+                  Log out
+                </button>
+              </div>
             )}
           </div>
         </div>

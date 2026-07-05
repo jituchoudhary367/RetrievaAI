@@ -264,7 +264,9 @@ class IngestionPipeline:
 
         try:
             # --- Extract ---
+            t0 = time.monotonic()
             extraction_result = extractor.extract(file_path)
+            t_extract = time.monotonic() - t0
 
             # --- Idempotency check ---
             extraction_result.metadata.user_id = user_id
@@ -275,7 +277,9 @@ class IngestionPipeline:
                 return FileIngestResult(path=str_path, status="skipped")
 
             # --- Preprocess ---
+            t0 = time.monotonic()
             prep = self._preprocessor.process(extraction_result.text)
+            t_prep = time.monotonic() - t0
             warnings = list(extraction_result.warnings) + list(prep.warnings)
 
             if not prep.text.strip():
@@ -287,19 +291,23 @@ class IngestionPipeline:
                 )
 
             # --- Deduplicate at document level (single item) ---
+            t0 = time.monotonic()
             dedup = self._deduplicator.deduplicate(
                 [prep.text], text_fn=lambda t: t
             )
+            t_dedup = time.monotonic() - t0
             if not dedup.kept:
                 return FileIngestResult(path=str_path, status="skipped",
                                         warnings=warnings)
 
             # --- Chunk ---
+            t0 = time.monotonic()
             source_type = extraction_result.metadata.source_type
             document_id = extraction_result.metadata.document_id
             chunks = self._chunker.chunk_document(
                 prep.text, document_id, source_type=source_type
             )
+            t_chunk = time.monotonic() - t0
 
             if not chunks:
                 return FileIngestResult(
@@ -322,13 +330,39 @@ class IngestionPipeline:
                 chunk.metadata.update(meta_dict)
 
             # --- Embed ---
+            t0 = time.monotonic()
             chunks = self._embedder.embed_chunks(chunks)
+            t_embed_wall = time.monotonic() - t0
 
             # --- Index ---
+            t0 = time.monotonic()
             count = self._indexer.index_chunks(chunks, user_id=user_id)
+            t_index = time.monotonic() - t0
 
             # --- Record in manifest ---
+            t0 = time.monotonic()
             manifest.record(manifest_key, str_path)
+            t_manifest = time.monotonic() - t0
+
+            t_total = t_extract + t_prep + t_dedup + t_chunk + t_embed_wall + t_index + t_manifest
+
+            logger.info(
+                "\n"
+                "--------------------------------------------------\n"
+                f"Document: {str_path}\n"
+                f"Pages: {getattr(extraction_result.metadata, 'page_count', 'unknown')}\n"
+                f"Chunks: {count}\n"
+                f"Extraction: {t_extract:.2f}s\n"
+                f"Preprocessing: {t_prep:.2f}s\n"
+                f"Deduplication: {t_dedup:.2f}s\n"
+                f"Chunking: {t_chunk:.2f}s\n"
+                f"Dense Embedding: {getattr(self._embedder, 'last_dense_time', 0.0):.2f}s\n"
+                f"Sparse Embedding: {getattr(self._embedder, 'last_sparse_time', 0.0):.2f}s\n"
+                f"Indexing: {t_index:.2f}s\n"
+                f"Manifest: {t_manifest:.2f}s\n"
+                f"TOTAL: {t_total:.2f}s\n"
+                "--------------------------------------------------"
+            )
 
             return FileIngestResult(
                 path=str_path,

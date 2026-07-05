@@ -83,13 +83,8 @@ export function Sidebar({
     <div className="w-64 bg-[#0d1117] border-r border-[#30363d] flex flex-col h-full flex-shrink-0">
       {/* Brand */}
       <div className="h-16 flex items-center px-4 mb-2 mt-2">
-        <div className="flex items-center justify-center relative w-8 h-8 mr-3">
-          <img src="/logo.png" alt="RetrievaAI Logo" className="w-8 h-8 object-contain drop-shadow-md" />
-        </div>
-        <div className="flex flex-col">
-          <span className="font-bold tracking-wide text-foreground text-sm uppercase">RetrievaAI</span>
-          <span className="text-[10px] text-muted-foreground tracking-widest uppercase">Retrieve. Understand. Generate.</span>
-        </div>
+        <img src="/logo.ico" alt="RetrievaAI Logo" className="w-12 h-12 object-contain mr-3 drop-shadow-md" />
+        <span className="font-bold tracking-wide text-foreground text-base uppercase" style={{ color: '#10b981' }}>RetrievaAI</span>
       </div>
 
       {/* New Chat Button */}
@@ -125,54 +120,7 @@ export function Sidebar({
         />
       </div>
 
-      {/* User Identity */}
-      {isAuthenticated ? (
-        <div className="relative mx-4 mt-2 mb-2 flex-shrink-0">
-          <div 
-            className="px-4 py-3 border border-[#30363d] rounded-lg flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer bg-[#161b22]" 
-            onClick={() => setShowDropdown(!showDropdown)} 
-            title="Profile menu"
-          >
-            <div className="flex items-center space-x-3 overflow-hidden">
-              {userInfo?.avatarUrl ? (
-                <img src={userInfo.avatarUrl} alt="Avatar" className="h-8 w-8 rounded-full flex-shrink-0 object-cover" />
-              ) : (
-                <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0 bg-[#10b981] flex items-center justify-center text-white font-bold">
-                  {userRoles.includes('admin') ? 'A' : 'U'}
-                </div>
-              )}
-              <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-semibold truncate text-foreground">{userInfo?.name || 'Logged in'}</span>
-                <span className="text-xs text-muted-foreground truncate">{userRoles.join(', ')}</span>
-              </div>
-            </div>
-            <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          </div>
-          
-          {showDropdown && (
-            <div className="absolute bottom-full left-0 mb-2 w-full bg-[#161b22] border border-[#30363d] rounded-lg shadow-lg overflow-hidden z-50">
-              <button 
-                onClick={handleLogout} 
-                className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-muted/50 transition-colors flex items-center"
-              >
-                Log out
-              </button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="px-4 mt-2 mb-2 flex space-x-2">
-          <Link href="/login" className="flex-1 text-center bg-muted hover:bg-muted/80 text-foreground py-2 rounded-md text-sm font-medium transition-colors">
-            Log in
-          </Link>
-          <Link href="/signup" className="flex-1 text-center bg-[#10b981] hover:bg-[#059669] text-white py-2 rounded-md text-sm font-medium transition-colors">
-            Sign up
-          </Link>
-        </div>
-      )}
 
-      {/* Status Bar inside Sidebar */}
-      <StatusBar />
     </div>
   );
 }

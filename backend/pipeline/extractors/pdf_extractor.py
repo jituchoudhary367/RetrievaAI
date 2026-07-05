@@ -16,6 +16,7 @@ Dependency chain (all optional — module is importable without any of them):
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -53,6 +54,9 @@ class PdfExtractor(BaseExtractor):
     """
 
     supported_extensions = frozenset({".pdf"})
+
+    _ocr_instance = None
+    _ocr_lock = threading.Lock()
 
     def __init__(self, max_file_size_bytes: Optional[int] = None) -> None:
         from app.config import get_settings
@@ -213,7 +217,11 @@ class PdfExtractor(BaseExtractor):
         result = list(page_texts)
         
         try:
-            ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+            if PdfExtractor._ocr_instance is None:
+                with PdfExtractor._ocr_lock:
+                    if PdfExtractor._ocr_instance is None:
+                        PdfExtractor._ocr_instance = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+            ocr = PdfExtractor._ocr_instance
         except Exception as exc:
             warnings.append(f"Failed to initialize PaddleOCR: {exc}")
             return result, warnings

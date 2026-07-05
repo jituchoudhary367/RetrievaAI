@@ -54,6 +54,7 @@ class APIModel(BaseModel):
         from_attributes=True,
         extra="forbid",
         str_strip_whitespace=True,
+        protected_namespaces=(),
     )
 
 
@@ -503,4 +504,4 @@ class AuthResponse(APIModel):
 
 class InviteResponse(APIModel):
     invite_link: str
-    expires_at: datetime
+    expires_at: datetime

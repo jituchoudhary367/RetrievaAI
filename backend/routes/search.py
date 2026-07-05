@@ -19,7 +19,7 @@ from app.models import SearchRequest, SearchResponse, SearchResult
 from retrieval.hybrid_retriever import HybridRetriever
 from retrieval.reranker import Reranker
 from pipeline.embedder import Embedder
-from pipeline.indexer import QdrantIndexer, BM25Index
+from pipeline.indexer import QdrantIndexer
 from security.auth import get_current_user
 from db.models.user import User
 from db.models.user import User

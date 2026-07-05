@@ -1,26 +1,23 @@
 """
 retrieval/hybrid_retriever.py
 
-Hybrid retriever combining dense (Qdrant) and sparse (BM25) search via
-Reciprocal Rank Fusion (RRF).
+Hybrid retriever combining dense (Qdrant) and sparse (BM42/SPLADE) search via
+Qdrant Native Hybrid Search and Reciprocal Rank Fusion (RRF).
 
 Pipeline:
-  1. Embed query → dense vector via Embedder.embed_texts([query])[0]
-  2. Dense search → top_k_dense hits from QdrantIndexer
-  3. Sparse search → top_k_sparse hits from BM25Index
-  4. Fuse ranked lists with RRF using rrf_k and hybrid_alpha weighting
-  5. Truncate to top_k_final (or caller-supplied top_k)
-
-BM25Index and bm25_index_path are resolved from settings — the same path
-used by pipeline/indexer.py so both read/write the same persisted file.
+  1. Embed query → dense vector and sparse vector via Embedder.embed_query_dual(query)
+  2. Construct Qdrant Prefetch query (text-dense + text-sparse) with RRF Fusion
+  3. Deduplicate and merge adjacent chunks (safe token length)
+  4. Truncate to top_k_final
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from typing import Dict, List, Optional, Tuple
 
-from pipeline.indexer import QdrantIndexer, BM25Index
+from pipeline.indexer import QdrantIndexer
 from pipeline.embedder import Embedder
 from retrieval.filters import build_qdrant_filter
 from app.config import RetrievalSettings, get_settings
@@ -31,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 class HybridRetriever:
     """
-    Retrieves chunks via dense + sparse search fused with RRF.
+    Retrieves chunks via Qdrant Native Hybrid Search.
 
     Parameters
     ----------
@@ -39,9 +36,6 @@ class HybridRetriever:
         An ``Embedder`` instance used to embed the query.
     qdrant_indexer:
         A ``QdrantIndexer`` for dense search.
-    bm25_index:
-        A ``BM25Index`` for sparse search.  When ``None``, loaded from
-        ``get_settings().qdrant.bm25_index_path``.
     settings:
         Override ``RetrievalSettings`` (mainly for testing).
     """
@@ -56,15 +50,6 @@ class HybridRetriever:
         self._cfg: RetrievalSettings = settings or cfg.retrieval
         self._embedder = embedder or Embedder()
         self._qdrant = qdrant_indexer or QdrantIndexer()
-        # _bm25_index is loaded dynamically per user in retrieve()
-        self._bm25_pool: Dict[str, BM25Index] = {}
-
-    def _get_bm25(self, user_id: str) -> BM25Index:
-        if user_id not in self._bm25_pool:
-            base_path = get_settings().qdrant.bm25_index_path
-            user_path = base_path / f"{user_id}.pkl"
-            self._bm25_pool[user_id] = BM25Index.load(user_path)
-        return self._bm25_pool[user_id]
 
     # ------------------------------------------------------------------
     # Public API
@@ -96,128 +81,166 @@ class HybridRetriever:
         -------
         List of ``RetrievedChunk`` sorted by descending fused score.
         """
-        final_k = top_k if top_k is not None else self._cfg.top_k_final
+        t0 = time.time()
+        
+        # Adaptive Retrieval Heuristic
+        # Simple < 5 words, Medium 5-10 words, Complex > 10 words
+        word_count = len(query.split())
+        if top_k is None:
+            if word_count < 5:
+                final_k = 5
+            elif word_count <= 10:
+                final_k = 8
+            else:
+                final_k = 12
+        else:
+            final_k = top_k
 
         # 1. Embed query
-        query_vector = None
-        if retrieval_mode in ("hybrid", "vector"):
-            try:
-                query_vector = self._embedder.embed_texts([query])[0]
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Failed to embed query: %s", exc)
+        query_dense = None
+        query_sparse = None
+        
+        t1 = time.time()
+        try:
+            query_dense, query_sparse = self._embedder.embed_query_dual(query)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to embed query: %s", exc)
+        t2 = time.time()
+        logger.info("Embedding latency: %.3fs", t2 - t1)
 
-        # 2. Dense search
+        # 2. Qdrant Native Hybrid Search
         user_filter = MetadataFilter(field="user_id", value=user_id, operator="eq")
         merged_filters = [user_filter]
         if filters:
             merged_filters.extend(filters)
         qdrant_filter = build_qdrant_filter(merged_filters)
-        dense_hits: List[Tuple[str, float]] = []
-        scored_points = []
-        if query_vector is not None:
-            try:
-                scored_points = self._qdrant.search(
-                    query_vector=query_vector,
-                    top_k=self._cfg.top_k_dense,
-                    query_filter=qdrant_filter,
+        
+        try:
+            from qdrant_client.http import models  # noqa: PLC0415
+        except ImportError as exc:
+            raise ImportError("qdrant-client is required") from exc
+
+        prefetch_list = []
+        if retrieval_mode in ("hybrid", "vector") and query_dense is not None:
+            prefetch_list.append(
+                models.Prefetch(
+                    query=query_dense,
+                    using="text-dense",
+                    limit=self._cfg.top_k_dense,
+                    filter=qdrant_filter
                 )
-                for point in scored_points:
-                    chunk_id = point.payload.get("chunk_id", str(point.id))
-                    dense_hits.append((chunk_id, float(point.score)))
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Qdrant dense search failed: %s", exc)
-
-        sparse_hits: List[Tuple[str, float]] = []
-        if retrieval_mode in ("hybrid", "keyword"):
-            try:
-                bm25 = self._get_bm25(user_id)
-                sparse_hits = bm25.search(query, top_k=self._cfg.top_k_sparse)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("BM25 sparse search failed: %s", exc)
-
-        # 4. Reciprocal Rank Fusion
-        fused = self._rrf(dense_hits, sparse_hits)
-
-        # 5. Truncate and build result objects
-        fused = fused[:final_k]
-        chunk_ids = {cid for cid, _ in fused}
-        dense_score_map: Dict[str, float] = dict(dense_hits)
-        sparse_score_map: Dict[str, float] = dict(sparse_hits)
-
-        # Collect payloads from Qdrant for the fused set
-        payloads = self._fetch_payloads(chunk_ids, scored_points if dense_hits else [])
-
-        results: List[RetrievedChunk] = []
-        for chunk_id, fused_score in fused:
-            payload = payloads.get(chunk_id, {})
-            results.append(
-                RetrievedChunk(
-                    chunk_id=chunk_id,
-                    document_id=payload.get("document_id", ""),
-                    text=payload.get("text", ""),
-                    source=RetrievalSource.VECTOR
-                    if chunk_id in dense_score_map
-                    else RetrievalSource.BM25,
-                    dense_score=dense_score_map.get(chunk_id),
-                    sparse_score=sparse_score_map.get(chunk_id),
-                    fused_score=fused_score,
-                    metadata={k: v for k, v in payload.items()
-                               if k not in {"chunk_id", "document_id", "text"}},
+            )
+            
+        if retrieval_mode in ("hybrid", "keyword") and query_sparse is not None:
+            indices = query_sparse.indices.tolist() if hasattr(query_sparse.indices, "tolist") else list(query_sparse.indices)
+            values = query_sparse.values.tolist() if hasattr(query_sparse.values, "tolist") else list(query_sparse.values)
+            prefetch_list.append(
+                models.Prefetch(
+                    query=models.SparseVector(indices=indices, values=values),
+                    using="text-sparse",
+                    limit=self._cfg.top_k_sparse,
+                    filter=qdrant_filter
                 )
             )
 
+        scored_points = []
+        t3 = time.time()
+        if prefetch_list:
+            try:
+                client = self._qdrant._get_client()
+                scored_points = client.query_points(
+                    collection_name=self._qdrant._cfg.collection_name,
+                    prefetch=prefetch_list,
+                    query=models.FusionQuery(fusion=models.Fusion.RRF),
+                    limit=self._cfg.top_k_dense + self._cfg.top_k_sparse, # Fetch more to allow merging
+                ).points
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Qdrant Native Hybrid search failed: %s", exc)
+        t4 = time.time()
+        logger.info("Qdrant search latency: %.3fs", t4 - t3)
+
+        # 3. Deduplicate and Merge
+        results = self._process_and_merge_chunks(scored_points)
+        
+        # 4. Truncate
+        results = results[:final_k]
+
         logger.info(
-            "HybridRetriever: %d dense, %d sparse → %d fused results.",
-            len(dense_hits),
-            len(sparse_hits),
+            "HybridRetriever: retrieved %d fused chunks (final_k=%d). Total latency: %.3fs",
             len(results),
+            final_k,
+            time.time() - t0
         )
         return results
 
-    # ------------------------------------------------------------------
-    # RRF
-    # ------------------------------------------------------------------
-
-    def _rrf(
-        self,
-        dense_hits: List[Tuple[str, float]],
-        sparse_hits: List[Tuple[str, float]],
-    ) -> List[Tuple[str, float]]:
+    def _process_and_merge_chunks(self, scored_points: list) -> List[RetrievedChunk]:
         """
-        Reciprocal Rank Fusion with ``hybrid_alpha`` weighting.
-
-        RRF score = alpha * 1/(k+rank_dense) + (1-alpha) * 1/(k+rank_sparse)
+        Deduplicates chunks and merges adjacent chunks from the same document.
         """
-        k = self._cfg.rrf_k
-        alpha = self._cfg.hybrid_alpha
+        if not scored_points:
+            return []
 
-        scores: Dict[str, float] = {}
+        # Deduplicate
+        seen = set()
+        unique_points = []
+        for p in scored_points:
+            cid = p.payload.get("chunk_id", str(p.id))
+            if cid not in seen:
+                seen.add(cid)
+                unique_points.append(p)
+                
+        # Create initial RetrievedChunk objects
+        chunks = []
+        for p in unique_points:
+            cid = p.payload.get("chunk_id", str(p.id))
+            payload = p.payload
+            chunks.append(
+                RetrievedChunk(
+                    chunk_id=cid,
+                    document_id=payload.get("document_id", ""),
+                    text=payload.get("text", ""),
+                    source=RetrievalSource.VECTOR,  # Native hybrid abstracts this
+                    dense_score=None,
+                    sparse_score=None,
+                    fused_score=float(p.score),
+                    metadata={k: v for k, v in payload.items() if k not in {"chunk_id", "document_id", "text"}},
+                )
+            )
 
-        for rank, (chunk_id, _) in enumerate(dense_hits, start=1):
-            scores[chunk_id] = scores.get(chunk_id, 0.0) + alpha / (k + rank)
+        # Merge adjacent chunks safely
+        merged_results = []
+        skip = set()
+        
+        for i, current in enumerate(chunks):
+            if current.chunk_id in skip:
+                continue
+            
+            merged_chunk = current
+            
+            # Look ahead for adjacent chunks in the current result set
+            for j in range(i + 1, len(chunks)):
+                nxt = chunks[j]
+                if nxt.chunk_id in skip:
+                    continue
+                
+                # Check adjacency
+                if current.document_id == nxt.document_id:
+                    idx1 = current.metadata.get("chunk_index", -1)
+                    idx2 = nxt.metadata.get("chunk_index", -1)
+                    
+                    if idx1 != -1 and idx2 != -1 and abs(idx1 - idx2) == 1:
+                        # Adjacent! Let's merge if text length is safe (< 5000 chars roughly)
+                        if len(current.text) + len(nxt.text) < 5000:
+                            if idx1 < idx2:
+                                merged_text = current.text + "\n\n" + nxt.text
+                            else:
+                                merged_text = nxt.text + "\n\n" + current.text
+                                
+                            merged_chunk.text = merged_text
+                            skip.add(nxt.chunk_id)
+            
+            merged_results.append(merged_chunk)
 
-        for rank, (chunk_id, _) in enumerate(sparse_hits, start=1):
-            scores[chunk_id] = scores.get(chunk_id, 0.0) + (1 - alpha) / (k + rank)
-
-        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        return ranked
-
-    # ------------------------------------------------------------------
-    # Payload helper
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _fetch_payloads(
-        chunk_ids: set,
-        scored_points: list,
-    ) -> Dict[str, dict]:
-        """Build a chunk_id → payload dict from Qdrant scored points."""
-        payloads: Dict[str, dict] = {}
-        for point in scored_points:
-            cid = point.payload.get("chunk_id", str(point.id))
-            if cid in chunk_ids:
-                payloads[cid] = dict(point.payload)
-        return payloads
-
+        return merged_results
 
 __all__ = ["HybridRetriever"]

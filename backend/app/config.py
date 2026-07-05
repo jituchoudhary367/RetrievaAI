@@ -138,7 +138,7 @@ class QdrantSettings(BaseSettings):
 class EmbeddingSettings(BaseSettings):
     """Embedding model provider and batching configuration."""
 
-    model_config = SettingsConfigDict(env_prefix="EMBEDDING_", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="EMBEDDING_", extra="ignore", protected_namespaces=())
 
     provider: EmbeddingProvider = Field(default=EmbeddingProvider.OPENAI)
     model_name: str = Field(default="text-embedding-3-small")
@@ -155,10 +155,10 @@ class EmbeddingSettings(BaseSettings):
 class LLMSettings(BaseSettings):
     """Primary LLM provider configuration, with optional fallback model."""
 
-    model_config = SettingsConfigDict(env_prefix="LLM_", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="LLM_", extra="ignore", protected_namespaces=())
 
     provider: LLMProvider = Field(default=LLMProvider.GROQ)
-    model_name: str = Field(default="llama-3.1-8b-instant")
+    model_name: str = Field(default="llama-3.3-70b-versatile")
     api_key: Optional[str] = Field(default=None, repr=False)
     fallback_model_name: Optional[str] = Field(default=None)
     temperature: float = Field(default=0.2, ge=0.0, le=2.0)

@@ -21,9 +21,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
+from functools import lru_cache
 
 from app.config import EmbeddingProvider, EmbeddingSettings, get_settings
 from app.models import Chunk
@@ -139,6 +142,9 @@ class Embedder:
     # Shared HuggingFace model cache — model_name → SentenceTransformer instance.
     # Avoids reloading the model on every request (loading takes ~2–5 seconds).
     _hf_model_cache: Dict[str, object] = {}
+    _hf_lock = threading.Lock()
+    _sparse_model_instance: Optional[object] = None
+    _sparse_lock = threading.Lock()
 
     def __init__(
         self,
@@ -147,6 +153,8 @@ class Embedder:
     ) -> None:
         self._cfg: EmbeddingSettings = settings or get_settings().embedding
         self._cache: EmbeddingCache = cache or InMemoryEmbeddingCache()
+        self.last_dense_time: float = 0.0
+        self.last_sparse_time: float = 0.0
 
     # ------------------------------------------------------------------
     # Public API
@@ -154,16 +162,78 @@ class Embedder:
 
     def embed_chunks(self, chunks: List[Chunk]) -> List[Chunk]:
         """
-        Embed all *chunks*, mutating ``.embedding`` in place.
+        Embed all *chunks*, mutating ``.embedding`` and injecting sparse vectors.
 
         Returns the same list for convenience.
         """
         texts = [chunk.text for chunk in chunks]
-        embeddings = self.embed_texts(texts)
-        for chunk, emb in zip(chunks, embeddings):
+        
+        def _timed_dense(txts: List[str]) -> Tuple[List[List[float]], float]:
+            t0 = time.monotonic()
+            return self.embed_texts(txts), time.monotonic() - t0
+            
+        def _timed_sparse(txts: List[str]) -> Tuple[List[object], float]:
+            t0 = time.monotonic()
+            return self.embed_texts_sparse(txts), time.monotonic() - t0
+            
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_dense = executor.submit(_timed_dense, texts)
+            future_sparse = executor.submit(_timed_sparse, texts)
+            
+            embeddings, dense_time = future_dense.result()
+            sparse_embeddings, sparse_time = future_sparse.result()
+            
+        self.last_dense_time = dense_time
+        self.last_sparse_time = sparse_time
+
+        for chunk, emb, sparse_emb in zip(chunks, embeddings, sparse_embeddings):
             chunk.embedding = emb
-        logger.info("Embedded %d chunks.", len(chunks))
+            chunk.metadata["sparse_embedding"] = sparse_emb
+        logger.info("Embedded %d chunks (dense + sparse).", len(chunks))
         return chunks
+
+    @classmethod
+    def _get_sparse_model(cls) -> object:
+        if cls._sparse_model_instance is None:
+            with cls._sparse_lock:
+                if cls._sparse_model_instance is None:
+                    try:
+                        from fastembed import SparseTextEmbedding  # type: ignore
+                    except ImportError as exc:
+                        raise ImportError(
+                            "fastembed is required for sparse embeddings. "
+                            "Install it with: pip install fastembed"
+                        ) from exc
+                    
+                    try:
+                        logger.info("Loading FastEmbed sparse model 'Qdrant/bm42-all-minilm-l6-v2-encoded'...")
+                        cls._sparse_model_instance = SparseTextEmbedding(model_name="Qdrant/bm42-all-minilm-l6-v2-encoded")
+                    except Exception as e:
+                        logger.warning("Failed to load bm42 model: %s. Falling back to 'prithivida/Splade_PP_en_v1'.", e)
+                        cls._sparse_model_instance = SparseTextEmbedding(model_name="prithivida/Splade_PP_en_v1")
+        
+        return cls._sparse_model_instance
+
+    def embed_texts_sparse(self, texts: Sequence[str]) -> List[object]:
+        """
+        Embed a sequence of texts using the sparse model.
+        Returns a list of fastembed.SparseEmbedding objects (with .indices and .values).
+        """
+        if not texts:
+            return []
+        model = self._get_sparse_model()
+        # FastEmbed handles its own batching.
+        return list(model.embed(list(texts)))
+
+    @lru_cache(maxsize=1000)
+    def embed_query_dual(self, query: str) -> Tuple[List[float], object]:
+        """
+        Embed a single query, returning both dense vector and sparse vector.
+        Uses an LRU cache for repeated queries.
+        """
+        dense = self.embed_texts([query])[0]
+        sparse = self.embed_texts_sparse([query])[0]
+        return dense, sparse
 
     def embed_texts(self, texts: Sequence[str]) -> List[List[float]]:
         """
@@ -278,6 +348,7 @@ class Embedder:
     def _embed_huggingface(self, texts: List[str]) -> List[List[float]]:
         try:
             from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+            import torch  # noqa: PLC0415
         except ImportError as exc:
             raise ImportError(
                 "sentence-transformers is required for HuggingFace embedding provider. "
@@ -287,15 +358,24 @@ class Embedder:
         try:
             model_name = self._cfg.model_name
             if model_name not in Embedder._hf_model_cache:
-                logger.info("Loading HuggingFace model '%s' (first call only)...", model_name)
-                Embedder._hf_model_cache[model_name] = SentenceTransformer(
-                    model_name, 
-                    device="cpu",
-                    model_kwargs={"low_cpu_mem_usage": False}
-                )
+                with Embedder._hf_lock:
+                    if model_name not in Embedder._hf_model_cache:
+                        logger.info("Loading HuggingFace model '%s' (first call only)...", model_name)
+                        device = "cuda" if torch.cuda.is_available() else "cpu"
+                        Embedder._hf_model_cache[model_name] = SentenceTransformer(
+                            model_name, 
+                            device=device,
+                            model_kwargs={"low_cpu_mem_usage": False}
+                        )
             model = Embedder._hf_model_cache[model_name]
-            embeddings = model.encode(texts, convert_to_numpy=True)
-            return [list(map(float, e)) for e in embeddings]
+            embeddings = model.encode(
+                texts, 
+                batch_size=self._cfg.batch_size, 
+                convert_to_numpy=True,
+                show_progress_bar=False,
+                normalize_embeddings=False
+            )
+            return list(embeddings)
         except Exception as exc:
             raise EmbeddingError(f"HuggingFace embedding failed: {exc}") from exc
 

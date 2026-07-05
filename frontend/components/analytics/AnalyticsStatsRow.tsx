@@ -24,15 +24,15 @@ export function AnalyticsStatsRow() {
     return () => clearInterval(interval);
   }, []);
 
-  const StatCard = ({ title, value, subtext, subtextColor, subtextIcon: SubIcon, icon: Icon, colorClass, iconBg, svgPath, svgGradient }: any) => (
+  const StatCard = ({ title, value, subtext, subtextColor, subtextIcon: SubIcon, icon: Icon, colorClass, iconBg, svgPath, svgGradient, trend }: any) => (
     <div className="flex-1 bg-[#12181f] border border-[#1e2329] rounded-xl p-4 hover:border-[#30363d] transition-colors relative overflow-hidden flex flex-col justify-between min-h-[110px]">
       <div className="flex items-start justify-between relative z-10">
         <div className="flex flex-col space-y-1">
           <span className="text-[10px] font-medium text-muted-foreground">{title}</span>
           <span className="text-xl font-bold text-foreground tracking-tight">{value}</span>
-          <div className={`flex items-center text-[9px] mt-1 ${subtextColor}`}>
-            {SubIcon && <SubIcon className="w-3 h-3 mr-1" />}
-            {subtext}
+          <div className={`flex items-center text-[10px] font-semibold mt-1 ${trend > 0 ? 'text-green-500' : trend < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+            {trend > 0 ? <ArrowUp className="w-3 h-3 mr-1" /> : trend < 0 ? <ArrowDown className="w-3 h-3 mr-1" /> : null}
+            {trend > 0 ? `+${trend}%` : trend < 0 ? `${trend}%` : `0%`}
           </div>
         </div>
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg} ${colorClass}`}>
@@ -40,7 +40,7 @@ export function AnalyticsStatsRow() {
         </div>
       </div>
       
-      {/* Background Sparkline Mock */}
+      {/* Background Sparkline */}
       <div className="absolute bottom-0 left-0 right-0 h-10 w-full opacity-60">
         <svg viewBox="0 0 100 30" className="w-full h-full" preserveAspectRatio="none">
           <defs>
@@ -81,8 +81,6 @@ export function AnalyticsStatsRow() {
       <StatCard 
         title="Total Queries" 
         value={current.totalQueries.toLocaleString()} 
-        subtext="Total usage in time range"
-        subtextColor="text-muted-foreground"
         icon={MessageSquare}
         colorClass="text-[#10b981]"
         iconBg="bg-[#10b981]/10"
@@ -92,8 +90,6 @@ export function AnalyticsStatsRow() {
       <StatCard 
         title="Active Users" 
         value={current.activeUsers.toLocaleString()} 
-        subtext="Unique users"
-        subtextColor="text-muted-foreground"
         icon={CheckCircle}
         colorClass="text-[#3b82f6]"
         iconBg="bg-[#3b82f6]/10"
@@ -103,8 +99,6 @@ export function AnalyticsStatsRow() {
       <StatCard 
         title="Avg. Response Time" 
         value={`${(current.avgLatencyMs / 1000).toFixed(2)}s`} 
-        subtext="End-to-end latency"
-        subtextColor="text-muted-foreground"
         icon={Clock}
         colorClass="text-[#8b5cf6]"
         iconBg="bg-[#8b5cf6]/10"
@@ -114,8 +108,6 @@ export function AnalyticsStatsRow() {
       <StatCard 
         title="Documents Indexed" 
         value={current.documentsIndexed?.toLocaleString() || '0'} 
-        subtext={`${current.totalChunks?.toLocaleString() || '0'} Total Chunks`}
-        subtextColor="text-muted-foreground"
         icon={Database}
         colorClass="text-yellow-500"
         iconBg="bg-yellow-500/10"

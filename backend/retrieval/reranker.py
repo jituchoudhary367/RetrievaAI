@@ -85,7 +85,7 @@ class Reranker:
 
         pairs = [(query, chunk.text) for chunk in chunks]
         try:
-            scores = model.predict(pairs)
+            scores = model.predict(pairs, batch_size=32)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Cross-encoder predict failed: %s — returning unreranked.", exc)
             return chunks[:n]
@@ -105,12 +105,16 @@ class Reranker:
         if self._model is not None:
             return self._model
         try:
+            import torch  # noqa: PLC0415
             from sentence_transformers import CrossEncoder  # noqa: PLC0415
+            
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             self._model = CrossEncoder(
                 self._cfg.rerank_model,
                 max_length=512,
+                device=device
             )
-            logger.info("CrossEncoder loaded: %s", self._cfg.rerank_model)
+            logger.info("CrossEncoder loaded: %s on %s", self._cfg.rerank_model, device)
             return self._model
         except ImportError:
             logger.warning(
