@@ -67,5 +67,6 @@ async def oauth_callback(provider: str, request: Request, db: AsyncSession = Dep
     )
     
     # Redirect to frontend to process the token
-    frontend_callback = f"{settings.frontend_base_url}/oauth/callback?token={tokens.access_token}"
+    base_url = settings.frontend_base_url.rstrip('/')
+    frontend_callback = f"{base_url}/oauth/callback?token={tokens.access_token}"
     return RedirectResponse(url=frontend_callback)
