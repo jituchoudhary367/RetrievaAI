@@ -2,77 +2,96 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { MessageSquare, Search, FileText, BarChart3, ShieldCheck, Blocks } from 'lucide-react';
-
-const features = [
-  {
-    title: 'AI Chat',
-    desc: 'Engage in natural, context-aware conversations backed by your exact document sources and inline citations.',
-    icon: MessageSquare
-  },
-  {
-    title: 'Hybrid Search',
-    desc: 'Combine semantic vector search with keyword matching to retrieve the most relevant information with high precision.',
-    icon: Search
-  },
-  {
-    title: 'Document Ingestion',
-    desc: 'Effortlessly upload and process PDFs, DOCX, TXT, and HTML files with automatic chunking and OCR capabilities.',
-    icon: FileText
-  },
-  {
-    title: 'Analytics',
-    desc: 'Gain actionable insights into query performance, retrieval accuracy, and system health through visual dashboards.',
-    icon: BarChart3
-  },
-  {
-    title: 'Enterprise Security',
-    desc: 'Keep your data safe with robust Role-Based Access Control, tenant isolation, and SOC2 compliant infrastructure.',
-    icon: ShieldCheck
-  },
-  {
-    title: 'Extensible Tools',
-    desc: 'Easily swap out LLMs, embedding models, and vector stores with our decoupled, modular microservice architecture.',
-    icon: Blocks
-  }
-];
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="py-24 bg-[#0A0F14] border-t border-[rgba(255,255,255,0.02)]">
+    <section id="features" className="py-24 bg-[#05070B] border-b border-[rgba(255,255,255,0.04)]">
       <div className="container mx-auto px-6 max-w-7xl">
         
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-6">
-            Powerful Features for Modern Teams
+        <div className="mb-20">
+          <h2 className="text-3xl lg:text-4xl font-medium tracking-tight text-white mb-6 max-w-2xl">
+            A strictly structural approach to enterprise search.
           </h2>
-          <p className="text-[#94A3B8] max-w-2xl mx-auto text-lg">
-            Built from the ground up for performance, scalability, and security.
-          </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              whileHover={{ y: -5, borderColor: "rgba(16,185,129,0.3)" }}
-              className="bg-[#10161E] border border-[rgba(255,255,255,0.06)] rounded-2xl p-8 flex flex-col transition-all group"
-            >
-              <div className="w-12 h-12 rounded-xl bg-[#05070B] border border-[rgba(255,255,255,0.06)] flex items-center justify-center mb-6 text-[#10B981] group-hover:bg-[#10B981]/10 group-hover:border-[#10B981]/30 transition-colors">
-                <feature.icon className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
-              <p className="text-[#94A3B8] leading-relaxed">
-                {feature.desc}
-              </p>
-            </motion.div>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-px bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.04)]">
+          
+          {/* Feature 1: Large Editorial Block */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="md:col-span-12 lg:col-span-8 bg-[#05070B] p-12 lg:p-16"
+          >
+            <div className="text-[10px] font-mono tracking-widest uppercase text-[#94A3B8] mb-8">
+              01 — Contextual AI
+            </div>
+            <h3 className="text-2xl lg:text-3xl font-medium text-white mb-4">
+              Semantic Hybrid Search
+            </h3>
+            <p className="text-[#94A3B8] max-w-lg leading-relaxed font-normal">
+              Combine sparse keyword matching with dense vector semantics. Our architecture ensures that high-precision domain terminology and broad conceptual queries are resolved simultaneously.
+            </p>
+          </motion.div>
+
+          {/* Feature 2: Split Metric */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="md:col-span-6 lg:col-span-4 bg-[#0A0F14] p-12 lg:p-16 flex flex-col justify-between"
+          >
+            <div className="text-[10px] font-mono tracking-widest uppercase text-[#94A3B8] mb-8">
+              02 — Velocity
+            </div>
+            <div>
+              <div className="text-5xl font-medium text-white mb-2">&lt;50ms</div>
+              <p className="text-[#94A3B8] text-sm">p99 retrieval latency</p>
+            </div>
+          </motion.div>
+
+          {/* Feature 3: Split Block */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="md:col-span-6 lg:col-span-5 bg-[#05070B] p-12 lg:p-16"
+          >
+            <div className="text-[10px] font-mono tracking-widest uppercase text-[#94A3B8] mb-8">
+              03 — Ingestion
+            </div>
+            <h3 className="text-xl font-medium text-white mb-4">
+              Universal Document Parsing
+            </h3>
+            <p className="text-[#94A3B8] text-sm leading-relaxed">
+              Native support for PDFs, DOCX, HTML, and images. Our pipeline handles OCR, semantic chunking, and metadata extraction without external dependencies.
+            </p>
+          </motion.div>
+
+          {/* Feature 4: Code Block */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="md:col-span-12 lg:col-span-7 bg-[#0A0F14] p-12 lg:p-16 relative overflow-hidden"
+          >
+            <div className="text-[10px] font-mono tracking-widest uppercase text-[#94A3B8] mb-8">
+              04 — Extensibility
+            </div>
+            <h3 className="text-xl font-medium text-white mb-6">
+              Modular Architecture
+            </h3>
+            <div className="bg-[#05070B] border border-[rgba(255,255,255,0.06)] p-6 font-mono text-xs text-[#94A3B8]">
+              <span className="text-[#10B981]">import</span> {'{'} Pipeline {'}'} <span className="text-[#10B981]">from</span> '@retrieva/sdk';<br/><br/>
+              <span className="text-[#10B981]">const</span> rag = <span className="text-[#10B981]">new</span> Pipeline({'{\n'}
+              {'  '}llm: <span className="text-white">'claude-3-sonnet'</span>,{'\n'}
+              {'  '}embedder: <span className="text-white">'bge-large-en-v1.5'</span>,{'\n'}
+              {'  '}store: <span className="text-white">'qdrant'</span>{'\n'}
+              {'}'});
+            </div>
+          </motion.div>
+
         </div>
-        
       </div>
     </section>
   );

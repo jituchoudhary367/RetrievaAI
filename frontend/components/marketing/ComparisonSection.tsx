@@ -2,72 +2,80 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Frown, Smile, XCircle, CheckCircle2 } from 'lucide-react';
 
 export function ComparisonSection() {
   return (
-    <section className="py-24 bg-[#0A0F14] relative overflow-hidden border-t border-[rgba(255,255,255,0.02)]">
-      <div className="container mx-auto px-6 max-w-6xl relative z-10">
+    <section className="py-24 bg-[#0A0F14] relative border-b border-[rgba(255,255,255,0.04)]">
+      <div className="container mx-auto px-6 max-w-4xl relative z-10">
         
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-6">
-            Why Choose RetrievaAI
+        <div className="mb-20 text-center">
+          <h2 className="text-3xl font-medium tracking-tight text-white">
+            The Evolution of Enterprise AI
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
+        <div className="flex flex-col items-center relative">
           
-          {/* Traditional AI */}
+          {/* Vertical 1px line */}
+          <div className="absolute top-0 bottom-0 left-[50%] w-[1px] bg-[rgba(255,255,255,0.06)] -translate-x-1/2" />
+
+          {/* Traditional AI Block */}
           <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.6 }}
-            className="bg-[#10161E] border border-[rgba(255,255,255,0.06)] rounded-3xl p-8 lg:p-10 relative overflow-hidden group"
+            className="w-full max-w-md bg-[#05070B] border border-[rgba(255,255,255,0.06)] p-8 relative z-10 mb-16 opacity-50 grayscale"
           >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-[#EF4444]/5 rounded-full blur-[80px] pointer-events-none group-hover:bg-[#EF4444]/10 transition-colors" />
-            
-            <div className="flex items-center space-x-4 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-[#EF4444]/10 border border-[#EF4444]/20 flex items-center justify-center text-[#EF4444]">
-                <Frown className="w-6 h-6" />
-              </div>
-              <h3 className="text-2xl font-bold text-white">Traditional AI Solutions</h3>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-[#94A3B8] mb-6">
+              Legacy Approach
             </div>
-            
-            <ul className="space-y-5">
-              {['Hallucinations', 'No proprietary knowledge', 'No citations', 'Limited security', 'Generic responses'].map((item) => (
-                <li key={item} className="flex items-start text-[#94A3B8] font-medium text-lg">
-                  <XCircle className="w-6 h-6 mr-4 text-[#EF4444] shrink-0" />
-                  {item}
-                </li>
-              ))}
+            <h3 className="text-xl font-medium text-white mb-6 line-through decoration-[rgba(255,255,255,0.2)]">
+              Traditional LLMs
+            </h3>
+            <ul className="space-y-4 font-mono text-xs text-[#94A3B8]">
+              <li className="flex items-start">
+                <span className="mr-3 opacity-50">[x]</span> Hallucinations
+              </li>
+              <li className="flex items-start">
+                <span className="mr-3 opacity-50">[x]</span> Generic public knowledge
+              </li>
+              <li className="flex items-start">
+                <span className="mr-3 opacity-50">[x]</span> No exact citations
+              </li>
             </ul>
           </motion.div>
 
-          {/* RetrievaAI */}
+          {/* Arrow Indicator */}
+          <div className="w-10 h-10 bg-[#0A0F14] border border-[rgba(255,255,255,0.06)] rounded-full flex items-center justify-center relative z-10 mb-16 text-[#94A3B8]">
+            ↓
+          </div>
+
+          {/* RetrievaAI Block */}
           <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="bg-[#10161E] border border-[#10B981]/30 rounded-3xl p-8 lg:p-10 relative overflow-hidden group shadow-[0_0_40px_rgba(16,185,129,0.05)] hover:shadow-[0_0_60px_rgba(16,185,129,0.1)] transition-shadow"
+            className="w-full max-w-md bg-[#05070B] border-t-2 border-[#10B981] border-l border-r border-b border-[rgba(255,255,255,0.06)] p-8 relative z-10 shadow-[0_20px_40px_rgba(16,185,129,0.05)]"
           >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-[#10B981]/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-[#10B981]/20 transition-colors" />
-            
-            <div className="flex items-center space-x-4 mb-8 relative z-10">
-              <div className="w-12 h-12 rounded-2xl bg-[#10B981]/20 border border-[#10B981]/40 flex items-center justify-center text-[#10B981]">
-                <Smile className="w-6 h-6" />
-              </div>
-              <h3 className="text-2xl font-bold text-white">RetrievaAI</h3>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-[#10B981] mb-6">
+              Modern Architecture
             </div>
-            
-            <ul className="space-y-5 relative z-10">
-              {['Source-grounded answers', 'Built on your documents', 'Hybrid Search', 'Enterprise Security', 'Exact citations', 'Context-aware responses'].map((item) => (
-                <li key={item} className="flex items-start text-white font-medium text-lg">
-                  <CheckCircle2 className="w-6 h-6 mr-4 text-[#10B981] shrink-0" />
-                  {item}
-                </li>
-              ))}
+            <h3 className="text-xl font-medium text-white mb-6">
+              RetrievaAI RAG
+            </h3>
+            <ul className="space-y-4 font-mono text-xs text-white">
+              <li className="flex items-start">
+                <span className="mr-3 text-[#10B981]">[✓]</span> Source-grounded accuracy
+              </li>
+              <li className="flex items-start">
+                <span className="mr-3 text-[#10B981]">[✓]</span> Isolated proprietary data
+              </li>
+              <li className="flex items-start">
+                <span className="mr-3 text-[#10B981]">[✓]</span> Line-level citations
+              </li>
+              <li className="flex items-start">
+                <span className="mr-3 text-[#10B981]">[✓]</span> Enterprise RBAC security
+              </li>
             </ul>
           </motion.div>
 

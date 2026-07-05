@@ -1,92 +1,80 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Quote } from 'lucide-react';
+import React from 'react';
+import { motion } from 'framer-motion';
 
-const testimonials = [
+const cases = [
   {
     id: 1,
-    quote: "RetrievaAI completely transformed how our engineering team interacts with our internal documentation. The semantic search is incredibly accurate.",
+    metric: "400%",
+    metricLabel: "Increase in retrieval accuracy",
+    quote: "RetrievaAI completely transformed how our engineering team interacts with our internal documentation.",
     name: "Alex Rivera",
     role: "Lead Engineer",
     company: "TechFlow Inc."
   },
   {
     id: 2,
-    quote: "We evaluated several RAG platforms, and RetrievaAI's enterprise security features and decoupled architecture made it the clear winner.",
-    name: "Sarah Chen",
-    role: "CTO",
-    company: "DataSphere"
-  },
-  {
-    id: 3,
-    quote: "The ability to stream responses while generating accurate inline citations has saved our legal team hundreds of hours in contract review.",
+    metric: "120hrs",
+    metricLabel: "Saved per week on contract review",
+    quote: "The ability to stream responses while generating accurate inline citations has been invaluable.",
     name: "Marcus Johnson",
     role: "VP of Operations",
     company: "Nexus Legal"
+  },
+  {
+    id: 3,
+    metric: "SOC2",
+    metricLabel: "Compliant deployment on day one",
+    quote: "We evaluated several RAG platforms, and RetrievaAI's enterprise security features made it the clear winner.",
+    name: "Sarah Chen",
+    role: "CTO",
+    company: "DataSphere"
   }
 ];
 
 export function TestimonialsSection() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  const next = () => setCurrentIndex((prev) => (prev + 1) % testimonials.length);
-  const prev = () => setCurrentIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length);
-
-  useEffect(() => {
-    const timer = setInterval(next, 6000);
-    return () => clearInterval(timer);
-  }, []);
-
   return (
-    <section className="py-24 bg-[#0A0F14] border-t border-[rgba(255,255,255,0.02)] overflow-hidden">
-      <div className="container mx-auto px-6 max-w-4xl relative">
+    <section className="py-24 bg-[#05070B] border-b border-[rgba(255,255,255,0.04)]">
+      <div className="container mx-auto px-6 max-w-7xl">
         
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white">
-            Loved by Developers and Teams
+        <div className="mb-20">
+          <h2 className="text-3xl font-medium tracking-tight text-white mb-6">
+            Production Outcomes
           </h2>
         </div>
 
-        <div className="relative h-[300px] sm:h-[250px] w-full">
-          <AnimatePresence mode="wait">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.04)]">
+          {cases.map((item, index) => (
             <motion.div
-              key={currentIndex}
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.5, ease: "easeInOut" }}
-              className="absolute inset-0 flex flex-col items-center justify-center text-center px-4"
+              key={item.id}
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              className="bg-[#0A0F14] p-10 flex flex-col justify-between"
             >
-              <Quote className="w-10 h-10 text-[#10B981]/20 mb-6" />
-              <p className="text-xl sm:text-2xl font-medium text-white mb-8 leading-relaxed max-w-3xl">
-                "{testimonials[currentIndex].quote}"
-              </p>
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 rounded-full overflow-hidden border border-[#10B981]/30 bg-[#10161E]">
-                  <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${testimonials[currentIndex].name}`} alt={testimonials[currentIndex].name} className="w-full h-full object-cover" />
+              <div>
+                <div className="text-4xl font-medium text-white mb-1">{item.metric}</div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-[#10B981] mb-8">
+                  {item.metricLabel}
                 </div>
-                <div className="text-left">
-                  <div className="text-sm font-bold text-white">{testimonials[currentIndex].name}</div>
-                  <div className="text-xs text-[#94A3B8]">{testimonials[currentIndex].role}, {testimonials[currentIndex].company}</div>
+                <p className="text-sm text-[#94A3B8] leading-relaxed mb-12">
+                  "{item.quote}"
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-3 pt-6 border-t border-[rgba(255,255,255,0.06)]">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-[#05070B] grayscale opacity-80">
+                  <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${item.name}`} alt={item.name} className="w-full h-full object-cover" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-white">{item.name}</div>
+                  <div className="text-[10px] text-[#94A3B8]">{item.role}, {item.company}</div>
                 </div>
               </div>
             </motion.div>
-          </AnimatePresence>
-
-          <button 
-            onClick={prev}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 md:-translate-x-12 w-10 h-10 rounded-full border border-[rgba(255,255,255,0.1)] flex items-center justify-center text-[#94A3B8] hover:text-white hover:bg-[#10161E] transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <button 
-            onClick={next}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 md:translate-x-12 w-10 h-10 rounded-full border border-[rgba(255,255,255,0.1)] flex items-center justify-center text-[#94A3B8] hover:text-white hover:bg-[#10161E] transition-colors"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+          ))}
         </div>
 
       </div>
