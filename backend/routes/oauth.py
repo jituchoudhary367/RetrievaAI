@@ -31,11 +31,12 @@ async def oauth_login(provider: str, request: Request):
     if not client:
         raise HTTPException(status_code=404, detail=f"Provider {provider} not configured")
     
-    # The callback URI needs to point back to the backend
-    redirect_uri = f"{settings.host}:{settings.port}/api/oauth/{provider}/callback"
-    # Handling localhost scenario safely
-    if "localhost" in settings.frontend_base_url:
-        redirect_uri = f"http://localhost:{settings.port}/api/oauth/{provider}/callback"
+    # The callback URI needs to point back to the backend securely
+    redirect_uri = str(request.url_for('oauth_callback', provider=provider))
+    
+    # Ensure production URLs use HTTPS even if proxy headers are missing
+    if "localhost" not in redirect_uri and redirect_uri.startswith("http://"):
+        redirect_uri = redirect_uri.replace("http://", "https://", 1)
     return await client.authorize_redirect(request, redirect_uri, prompt="select_account")
 
 @router.get("/{provider}/callback")
