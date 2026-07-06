@@ -6,7 +6,7 @@ import { AlertTriangle, Download, RefreshCw, Trash2 } from 'lucide-react';
 export function DangerZone() {
   return (
     <div className="bg-[#12181f] border border-red-500/20 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between p-6 gap-6 relative overflow-hidden">
-      
+
       {/* Subtle red glow background */}
       <div className="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-red-500/5 to-transparent pointer-events-none" />
 

@@ -13,7 +13,11 @@ Lifespan:
 
 import asyncio
 import logging
+import time
+import warnings
 from contextlib import asynccontextmanager
+
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -86,6 +90,7 @@ def create_app() -> FastAPI:
     # ── Proxy Headers ─────────────────────────────────────────────────────
     # Required for Authlib to verify the callback URL scheme (https) properly
     # when hosted behind a reverse proxy like Render.
+    # pyrefly: ignore [bad-argument-type]
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
     # ── CORS ──────────────────────────────────────────────────────────────

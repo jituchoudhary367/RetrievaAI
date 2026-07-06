@@ -42,13 +42,8 @@ def get_pipeline() -> RAGPipeline:
     return RAGPipeline()
 
 
-async def _persist_conversation(
-    user_id: str,
-    session_id: str,
-    user_query: str,
-    assistant_response: str
-) -> None:
-    """Dual-write chat history to Postgres (fire-and-forget)."""
+async def _persist_message(user_id: str, session_id: str, role: str, content: str) -> None:
+    """Dual-write chat history to Postgres (fire-and-forget), one message at a time."""
     try:
         async with async_session_factory() as db:
             result = await db.execute(
@@ -59,7 +54,10 @@ async def _persist_conversation(
             )
             conv = result.scalar_one_or_none()
             if not conv:
-                title = user_query[:50] + "..." if len(user_query) > 50 else user_query
+                if role == "user":
+                    title = content[:50] + "..." if len(content) > 50 else content
+                else:
+                    title = "New Conversation"
                 conv = Conversation(
                     session_id=session_id,
                     user_id=user_id,
@@ -73,20 +71,13 @@ async def _persist_conversation(
             db.add(ConversationMessage(
                 user_id=user_id,
                 conversation_id=conv.id,
-                role="user",
-                content=user_query
-            ))
-            
-            db.add(ConversationMessage(
-                user_id=user_id,
-                conversation_id=conv.id,
-                role="assistant",
-                content=assistant_response
+                role=role,
+                content=content
             ))
             
             await db.commit()
     except Exception as e:
-        logger.warning(f"Failed to persist conversation to DB: {e}")
+        logger.warning(f"Failed to persist {role} message to DB: {e}")
 
 
 @router.post(
@@ -117,30 +108,34 @@ async def execute_query(
         
         user_api_keys = {
             "GROQ_API_KEY": user_prefs.get("GROQ_API_KEY"),
-            "SERPER_API_KEY": user_prefs.get("SERPER_API_KEY"),
         }
         
         if current_user.email == "jituchoudharyat@gmail.com":
             app_settings = get_settings()
             env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-            serper = dotenv.get_key(env_path, "SERPER_API_KEY") if os.path.exists(env_path) else app_settings.serper_api_key
             groq = dotenv.get_key(env_path, "GROQ_API_KEY") if os.path.exists(env_path) else getattr(app_settings, "groq_api_key", None)
-            if not user_api_keys["SERPER_API_KEY"] and serper:
-                user_api_keys["SERPER_API_KEY"] = serper
             if not user_api_keys["GROQ_API_KEY"] and groq:
                 user_api_keys["GROQ_API_KEY"] = groq
                 
         if not user_api_keys.get("GROQ_API_KEY"):
             raise HTTPException(status_code=400, detail="GROQ_API_KEY is not configured in your integrations settings.")
             
-        response = await pipeline.run(request, user_id=current_user.id, user_api_keys=user_api_keys)
-        
-        # Dual-write conversation to Postgres
-        asyncio.create_task(_persist_conversation(
+        # Dual-write user message to Postgres instantly
+        asyncio.create_task(_persist_message(
             user_id=current_user.id,
             session_id=request.session_id,
-            user_query=request.query,
-            assistant_response=response.answer
+            role="user",
+            content=request.query
+        ))
+            
+        response = await pipeline.run(request, user_id=current_user.id, user_api_keys=user_api_keys)
+        
+        # Dual-write assistant response to Postgres
+        asyncio.create_task(_persist_message(
+            user_id=current_user.id,
+            session_id=request.session_id,
+            role="assistant",
+            content=response.answer
         ))
         
         # Fire and forget telemetry
@@ -196,6 +191,14 @@ async def execute_query_stream(
     """
     logger.info("Received /stream request for session %s from user %s", request.session_id, current_user.id)
 
+    # Dual-write user message to Postgres instantly
+    asyncio.create_task(_persist_message(
+        user_id=current_user.id,
+        session_id=request.session_id,
+        role="user",
+        content=request.query
+    ))
+
     async def event_generator() -> AsyncGenerator[str, None]:
         from services.user_preferences import get_user_preferences
         from app.config import get_settings
@@ -205,18 +208,12 @@ async def execute_query_stream(
         
         user_api_keys = {
             "GROQ_API_KEY": user_prefs.get("GROQ_API_KEY"),
-            "SERPER_API_KEY": user_prefs.get("SERPER_API_KEY"),
         }
         
         if current_user.email == "jituchoudharyat@gmail.com":
             app_settings = get_settings()
             env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-            serper = dotenv.get_key(env_path, "SERPER_API_KEY") if os.path.exists(env_path) else app_settings.serper_api_key
             groq = dotenv.get_key(env_path, "GROQ_API_KEY") if os.path.exists(env_path) else getattr(app_settings, "groq_api_key", None)
-            if not user_api_keys["SERPER_API_KEY"] and serper:
-                user_api_keys["SERPER_API_KEY"] = serper
-                from services.user_preferences import get_user_preferences
-                asyncio.create_task(get_user_preferences().set(current_user.id, "SERPER_API_KEY", serper))
             if not user_api_keys["GROQ_API_KEY"] and groq:
                 user_api_keys["GROQ_API_KEY"] = groq
                 from services.user_preferences import get_user_preferences
@@ -245,11 +242,11 @@ async def execute_query_stream(
                 yield f"data: {chunk.model_dump_json(by_alias=True)}\n\n"
                 
             # Stream completed successfully. Fire off persistence and telemetry.
-            asyncio.create_task(_persist_conversation(
+            asyncio.create_task(_persist_message(
                 user_id=current_user.id,
                 session_id=request.session_id,
-                user_query=request.query,
-                assistant_response=full_response_text
+                role="assistant",
+                content=full_response_text
             ))
             
             if metadata_chunk and metadata_chunk.metadata:

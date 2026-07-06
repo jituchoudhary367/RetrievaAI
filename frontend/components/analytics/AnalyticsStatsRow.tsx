@@ -30,10 +30,12 @@ export function AnalyticsStatsRow() {
         <div className="flex flex-col space-y-1">
           <span className="text-[10px] font-medium text-muted-foreground">{title}</span>
           <span className="text-xl font-bold text-foreground tracking-tight">{value}</span>
-          <div className={`flex items-center text-[10px] font-semibold mt-1 ${trend > 0 ? 'text-green-500' : trend < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-            {trend > 0 ? <ArrowUp className="w-3 h-3 mr-1" /> : trend < 0 ? <ArrowDown className="w-3 h-3 mr-1" /> : null}
-            {trend > 0 ? `+${trend}%` : trend < 0 ? `${trend}%` : `0%`}
-          </div>
+          {trend ? (
+            <div className={`flex items-center text-[10px] font-semibold mt-1 ${trend > 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {trend > 0 ? <ArrowUp className="w-3 h-3 mr-1" /> : <ArrowDown className="w-3 h-3 mr-1" />}
+              {trend > 0 ? `+${trend}%` : `${trend}%`}
+            </div>
+          ) : null}
         </div>
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg} ${colorClass}`}>
           <Icon className="h-4 w-4" strokeWidth={1.5} />

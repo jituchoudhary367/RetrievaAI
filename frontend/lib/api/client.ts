@@ -1,7 +1,7 @@
 import { ErrorDetail, ErrorResponse } from "../types/models";
 import { getAuthToken, clearAuthToken } from "../auth/session";
 
-export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
 export class ApiError extends Error {
   statusCode: number;
@@ -38,7 +38,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   let response: Response;
   try {
-    response = await fetch(url, { ...init, headers });
+    response = await fetch(url, { cache: "no-store", ...init, headers });
   } catch (networkErr: any) {
     // Connection refused, CORS failure, or offline
     throw new ApiError(0, [{ code: "NETWORK_ERROR", message: "Cannot reach the API server. Please make sure the backend is running." }], networkErr?.message || "Failed to fetch");

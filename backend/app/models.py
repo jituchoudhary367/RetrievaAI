@@ -53,7 +53,6 @@ class APIModel(BaseModel):
         populate_by_name=True,
         from_attributes=True,
         extra="forbid",
-        str_strip_whitespace=True,
         protected_namespaces=(),
     )
 

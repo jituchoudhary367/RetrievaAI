@@ -369,6 +369,21 @@ class OAuthSettings(BaseSettings):
     google_client_secret: Optional[str] = Field(default=None, repr=False)
 
 
+class RealtimeSearchSettings(BaseSettings):
+    """Configuration for Native Realtime Search Service (Scrapling/Scrapy)."""
+
+    model_config = SettingsConfigDict(env_prefix="SEARCH_", extra="ignore")
+
+    enabled: bool = Field(default=True)
+    provider: str = Field(default="duckduckgo")
+    timeout_seconds: float = Field(default=15.0, gt=0.0)
+    max_crawl_depth: int = Field(default=1, ge=1)
+    max_page_size_mb: float = Field(default=5.0, gt=0.0)
+    user_agent: str = Field(default="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
+    concurrent_fetches: int = Field(default=3, ge=1)
+
+
+
 
 # --------------------------------------------------------------------------- #
 # Root settings
@@ -414,8 +429,6 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = Field(default=None, repr=False)
     openai_api_key: Optional[str] = Field(default=None, repr=False)
     cohere_api_key: Optional[str] = Field(default=None, repr=False)
-    serper_api_key: Optional[str] = Field(default=None, repr=False)
-    tavily_api_key: Optional[str] = Field(default=None, repr=False)
     groq_api_key: Optional[str] = Field(default=None, repr=False)
     openrouter_api_key: Optional[str] = Field(default=None, repr=False)
 
@@ -435,6 +448,7 @@ class Settings(BaseSettings):
     features: FeatureFlags = Field(default_factory=FeatureFlags)
     email: EmailSettings = Field(default_factory=EmailSettings)
     oauth: OAuthSettings = Field(default_factory=OAuthSettings)
+    realtime_search: RealtimeSearchSettings = Field(default_factory=RealtimeSearchSettings)
 
     # ----------------------------------------------------------------- #
     # Validators

@@ -205,12 +205,9 @@ class Embedder:
                             "Install it with: pip install fastembed"
                         ) from exc
                     
-                    try:
-                        logger.info("Loading FastEmbed sparse model 'Qdrant/bm42-all-minilm-l6-v2-encoded'...")
-                        cls._sparse_model_instance = SparseTextEmbedding(model_name="Qdrant/bm42-all-minilm-l6-v2-encoded")
-                    except Exception as e:
-                        logger.warning("Failed to load bm42 model: %s. Falling back to 'prithivida/Splade_PP_en_v1'.", e)
-                        cls._sparse_model_instance = SparseTextEmbedding(model_name="prithivida/Splade_PP_en_v1")
+                    logger.info("Loading FastEmbed sparse model 'prithivida/Splade_PP_en_v1'...")
+                    cls._sparse_model_instance = SparseTextEmbedding(model_name="prithivida/Splade_PP_en_v1")
+
         
         return cls._sparse_model_instance
 

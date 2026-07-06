@@ -38,7 +38,7 @@ _BUILTIN_TOOLS = [
         "name": "web_search",
         "category": "web",
         "description": (
-            "Web search via Serper or Tavily API. "
+            "Web search via Native Realtime Search Service (Scrapling/Scrapy). "
             "Used by CRAG as a fallback when knowledge base results are insufficient."
         ),
         "status": "active",

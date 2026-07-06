@@ -96,8 +96,7 @@ class RAGPipeline:
         self._input_guard = input_guard or InputGuard()
         self._output_guard = output_guard or OutputGuard()
 
-        from tools.web_search import WebSearchTool
-        self._web_search = WebSearchTool()
+
 
     # ------------------------------------------------------------------
     # Non-streaming
@@ -122,20 +121,31 @@ class RAGPipeline:
         user_api_keys = user_api_keys or {}
         llm_api_key = user_api_keys.get("GROQ_API_KEY") or cfg.resolved_llm_api_key()
         embed_api_key = cfg.resolved_embedding_api_key()
-        if user_api_keys.get("SERPER_API_KEY"):
-            self._web_search._serper_key = user_api_keys["SERPER_API_KEY"]
-        
+
         # Override embedder settings for this request
         self._retriever._embedder._cfg = self._retriever._embedder._cfg.model_copy(update={"api_key": embed_api_key})
 
-        # 2. Semantic cache lookup
+        # 2. Save USER history instantly (before cache check so it's always in history)
+        self._store.add_message(
+            request.session_id,
+            ChatMessage(role=MessageRole.USER, content=request.query),
+            user_id=user_id
+        )
+
+        # 3. Semantic cache lookup
         if request.use_cache:
             cached = self._cache.get(request.query, user_id=user_id)
             if cached is not None:
                 cached.metadata.used_cache = True
+                # We still need to record the assistant's cached answer in history
+                self._store.add_message(
+                    request.session_id,
+                    ChatMessage(role=MessageRole.ASSISTANT, content=cached.answer),
+                    user_id=user_id
+                )
                 return cached
 
-        # 3. Conversation history
+        # 4. Fetch conversation history for context
         history = self._store.get_history(request.session_id, user_id=user_id)
 
         # 4. Query routing
@@ -147,32 +157,7 @@ class RAGPipeline:
         # 6. Retrieval (merge results from all sub-queries)
         t_retrieval_start = time.monotonic()
         all_chunks: List[RetrievedChunk] = []
-        used_web_search = False
 
-        if request.force_web_search:
-            try:
-                from app.models import RetrievalSource
-                web_results = self._web_search.search(request.query, top_k=3)
-                for res in web_results:
-                    snippet = res.get("snippet", "").strip()
-                    if snippet:
-                        all_chunks.append(
-                            RetrievedChunk(
-                                chunk_id=f"web:{hash(snippet) & 0xFFFFFFFF:08x}",
-                                document_id=res.get("url", "web"),
-                                text=snippet,
-                                source=RetrievalSource.WEB,
-                                metadata={
-                                    "title": res.get("title", ""),
-                                    "url": res.get("url", ""),
-                                    "source_type": "web",
-                                },
-                            )
-                        )
-                used_web_search = True
-            except Exception as e:
-                logger.warning(f"Web search failed in pipeline: {e}")
-                
         # Always do document retrieval
         for sq in sub_queries:
             chunks = self._retriever.retrieve(
@@ -192,13 +177,15 @@ class RAGPipeline:
 
         retrieval_latency = (time.monotonic() - t_retrieval_start) * 1000
 
-        # 7. Rerank
-        reranked = self._reranker.rerank(request.query, unique_chunks, top_n=request.top_k)
+        # 7. CRAG correction
+        if cfg.features.enable_crag:
+            unique_chunks = self._crag.correct(request.query, unique_chunks, force_web_search=request.force_web_search)
+            
+        from app.models import RetrievalSource
+        used_web_search = any(c.source == RetrievalSource.WEB for c in unique_chunks)
 
-        # 8. CRAG correction
-        settings = get_settings()
-        if settings.features.enable_crag:
-            reranked = self._crag.correct(request.query, reranked)
+        # 8. Rerank (ensures enterprise and web docs are ranked together)
+        reranked = self._reranker.rerank(request.query, unique_chunks, top_n=request.top_k)
 
         # 9. Context builder
         context_str, citations = self._build_context(reranked)
@@ -232,7 +219,7 @@ class RAGPipeline:
             generation_latency_ms=generation_latency,
             total_latency_ms=total_latency,
             token_usage=token_usage,
-            model_name=settings.llm.model_name,
+            model_name=cfg.llm.model_name,
             retrieved_count=len(all_chunks),
             reranked_count=len(reranked),
             top_k=request.top_k,
@@ -304,16 +291,28 @@ class RAGPipeline:
         user_api_keys = user_api_keys or {}
         llm_api_key = user_api_keys.get("GROQ_API_KEY") or cfg.resolved_llm_api_key()
         embed_api_key = cfg.resolved_embedding_api_key()
-        if user_api_keys.get("SERPER_API_KEY"):
-            self._web_search._serper_key = user_api_keys["SERPER_API_KEY"]
+
         
         # Override embedder settings for this request
         self._retriever._embedder._cfg = self._retriever._embedder._cfg.model_copy(update={"api_key": embed_api_key})
 
-        # 2. Cache
+        # 2. Save USER history instantly (before cache check)
+        self._store.add_message(
+            request.session_id,
+            ChatMessage(role=MessageRole.USER, content=request.query),
+            user_id=user_id
+        )
+
+        # 2.5 Cache
         if request.use_cache:
             cached = self._cache.get(request.query, user_id=user_id)
             if cached is not None:
+                # Save Assistant's cached response in history
+                self._store.add_message(
+                    request.session_id,
+                    ChatMessage(role=MessageRole.ASSISTANT, content=cached.answer),
+                    user_id=user_id
+                )
                 async for chunk in self._replay_cached(cached, request.session_id, seq):
                     yield chunk
                 return
@@ -324,32 +323,7 @@ class RAGPipeline:
         sub_queries = self._decomposer.decompose(request.query)
 
         all_chunks: List[RetrievedChunk] = []
-        used_web_search = False
 
-        if request.force_web_search:
-            try:
-                from app.models import RetrievalSource
-                web_results = self._web_search.search(request.query, top_k=3)
-                for res in web_results:
-                    snippet = res.get("snippet", "").strip()
-                    if snippet:
-                        all_chunks.append(
-                            RetrievedChunk(
-                                chunk_id=f"web:{hash(snippet) & 0xFFFFFFFF:08x}",
-                                document_id=res.get("url", "web"),
-                                text=snippet,
-                                source=RetrievalSource.WEB,
-                                metadata={
-                                    "title": res.get("title", ""),
-                                    "url": res.get("url", ""),
-                                    "source_type": "web",
-                                },
-                            )
-                        )
-                used_web_search = True
-            except Exception as e:
-                logger.warning(f"Web search failed in pipeline: {e}")
-                
         # Always do document retrieval
         for sq in sub_queries:
             all_chunks.extend(
@@ -363,11 +337,15 @@ class RAGPipeline:
                 seen_ids.add(c.chunk_id)
                 unique_chunks.append(c)
 
-        settings = get_settings()
+        # 7. CRAG correction
+        if cfg.features.enable_crag:
+            unique_chunks = self._crag.correct(request.query, unique_chunks, force_web_search=request.force_web_search)
+            
+        from app.models import RetrievalSource
+        used_web_search = any(c.source == RetrievalSource.WEB for c in unique_chunks)
+
+        # 8. Rerank
         reranked = self._reranker.rerank(request.query, unique_chunks, top_n=request.top_k)
-                    
-        if settings.features.enable_crag:
-            reranked = self._crag.correct(request.query, reranked)
 
         context_str, citations = self._build_context(reranked)
 
@@ -408,7 +386,7 @@ class RAGPipeline:
             used_cache=False,
             used_web_search=used_web_search,
             total_latency_ms=total_latency,
-            model_name=settings.llm.model_name,
+            model_name=cfg.llm.model_name,
             retrieved_count=len(all_chunks),
             reranked_count=len(reranked),
             top_k=request.top_k,
@@ -421,8 +399,7 @@ class RAGPipeline:
             metadata=meta,
         )
 
-        # 12. Save history
-        self._store.add_message(request.session_id, ChatMessage(role=MessageRole.USER, content=request.query), user_id=user_id)
+        # 12. Save history (Assistant only, since User was saved at the start)
         self._store.add_message(request.session_id, ChatMessage(role=MessageRole.ASSISTANT, content=full_answer), user_id=user_id)
         self._store.summarize_if_needed(request.session_id, user_id=user_id)
 

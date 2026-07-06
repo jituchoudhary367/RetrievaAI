@@ -1,0 +1,246 @@
+# Backend Documentation Summary
+
+This document provides a comprehensive summary of the backend directory structure and the purpose of every file.
+
+- **backend/**
+  - .dockerignore
+  - .env
+  - .python-version
+  - Dockerfile
+  - README.md
+  - alembic.ini
+  - backend_summary_raw.txt
+  - clear_sessions.py - *No docstring provided.*
+  - docker-compose.prod.yml
+  - docker-compose.yml
+  - migrate_db.py - *No docstring provided.*
+  - pyproject.toml
+  - requirements.txt
+  - run.py - *run.py*
+  - **agents/**
+    - __init__.py - *No docstring provided.*
+    - adaptive_router.py - *agents/adaptive_router.py*
+    - crag.py - *agents/crag.py*
+  - **app/**
+    - __init__.py - *No docstring provided.*
+    - config.py - *app/config.py*
+    - main.py - *app/main.py*
+    - models.py - *app/models.py*
+  - **data/**
+    - ingest_manifest.json
+    - **blobs/**
+      - **024bad9c-b914-48ca-95cd-393cde1f104b/**
+        - **115fd161-b862-459f-b2e5-9ee552790583/**
+          - Data Visualization Using Power BI (1).pdf
+        - **175630b3-669f-4642-beca-e4e78d157281/**
+          - problem statements code tantra.pdf
+        - **489c979f-9d1e-4eca-ada1-fd464d993230/**
+          - data training bot.pdf
+        - **5b07a292-b238-4f3e-a30d-4e802f1074c7/**
+          - data training bot.pdf
+        - **5fbe4ba3-0c8d-4015-ade1-fa7ce24f2bd1/**
+          - data training bot.pdf
+        - **c3e67ba4-4b03-4337-9edf-41550335a38e/**
+          - data training bot.pdf
+        - **c7200676-d0c5-4203-a0df-9b3664245035/**
+          - data training bot.pdf
+        - **edaa0823-6873-4907-9171-eff23a0b3e3d/**
+          - data training bot.pdf
+      - **8a39c7b9-f82f-48f9-8888-47ad74ad6998/**
+        - MASTER_GENERATION_PROMPT.md
+      - **b383e0d1-ac1b-49d9-ad4b-bacac966b679/**
+        - data_bot.pdf
+      - **ca302632-d8e6-4ca1-9455-8dc827492c68/**
+        - data_bot.pdf
+      - **e81a64f4-71c6-43c2-8217-ec47e18980fd/**
+        - data training bot.pdf
+      - **e986893f-e804-4b47-bc3a-1efdf4b5968c/**
+        - data_bot.pdf
+      - **users/**
+        - **a73c8605-d78f-4aa6-bfa9-23682aa155c9/**
+          - **07d530cb-f929-41d5-90cd-e86b32142fc3/**
+            - data_bot.pdf
+          - **10cadc98-43d3-4fcb-81db-911f1018e415/**
+            - pharma_instruction_data.csv
+          - **3259ef6b-d119-43a7-91ca-e7ed439b761c/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **58c9e98a-0f14-4ba3-8561-e5487afbef60/**
+            - Unternehmenspolitik_STEP_G_englisch.pdf
+          - **7971e657-7e1c-46a6-ae00-d81c7483d552/**
+            - Company-Policy-and-Procedure-June-1.18-V6.0.pdf
+          - **79b11330-ef5e-411b-a77f-4f094f7add8f/**
+            - Docker_Desktop_Cleanup_and_Disk_Recovery_Guide.pdf
+          - **82fa535a-ad47-435b-9a00-7ff6a8e3151a/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **978ca697-2398-4717-b470-4e8296976788/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **e4697b1b-c9ce-4a1a-95f7-5c0c48dc1dae/**
+            - Unternehmenspolitik_STEP_G_englisch.pdf
+        - **b21e8560-9262-41dc-8e4e-d0776eb14962/**
+          - **07bc514b-5272-4864-b1a8-cca4a60390a3/**
+            - Docker_Desktop_Cleanup_and_Disk_Recovery_Guide.pdf
+          - **0a10c912-ed59-4a81-b93e-4278f349b9f9/**
+            - MULTI_TENANCY_AMENDMENT.md
+          - **1beffec4-11ff-4831-92a2-8a6ccd126e49/**
+            - Company-Policy-and-Procedure-June-1.18-V6.0.pdf
+          - **2006131a-8af7-4e23-a7bb-deb2a9dcdf11/**
+            - Docker_Desktop_Cleanup_and_Disk_Recovery_Guide.pdf
+          - **252eb0ce-4cda-4771-8095-724bdf81b1a3/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **2a01b8dc-ba63-46c5-8935-4b3c819334c7/**
+            - Company-Policy-and-Procedure-June-1.18-V6.0.pdf
+          - **2ce89678-2edf-46cf-81d5-2f0c4d017b6a/**
+            - Company-Policy-and-Procedure-June-1.18-V6.0.pdf
+          - **3824d8df-7d45-41fc-82cd-8edb23be8f48/**
+            - Company-Policy-and-Procedure-June-1.18-V6.0.pdf
+          - **3cdf367c-b90a-43e4-aca1-0a2c256fe487/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **44f83065-2a10-4563-aef7-69cd5ad30b12/**
+            - Unternehmenspolitik_STEP_G_englisch.pdf
+          - **450a117b-61be-4a9b-b388-dce8a7ce283c/**
+            - IMDB-Dataset.csv
+          - **54583f95-e67c-418e-8bd7-9e1a2eb5e54c/**
+            - ilide.info-company-policies-and-procedures-manual-pr_1609c31ba5b7a18f59cf88f5c90871b3.pdf
+          - **5b1b1cba-e5af-4e35-b007-e69f3a548848/**
+            - Unternehmenspolitik_STEP_G_englisch.pdf
+          - **617889a8-ef12-4e0f-95e9-464f16a70b1c/**
+            - Unternehmenspolitik_STEP_G_englisch.pdf
+          - **649dfdb4-08c9-4a08-afc7-b515ee3c8165/**
+          - **6648a496-fe1c-485a-8071-be9425c7ad9a/**
+            - Company-Policy-and-Procedure-June-1.18-V6.0.pdf
+          - **7b2df30a-b152-41ed-8383-dca6c720a34f/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **837f569a-063c-451a-a848-35bb976f11df/**
+            - IMDB-Dataset.csv
+          - **83824a07-d21b-442c-a08c-42ec3f2e9076/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **89933cd5-03a6-4f01-89c5-13a0b19854dd/**
+            - Unternehmenspolitik_STEP_G_englisch.pdf
+          - **8c1c44d0-15a0-4b2a-8ae1-585fee7f3d9c/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **90910988-687b-43ad-bb17-c3a4a755f876/**
+            - data_bot.pdf
+          - **98600688-b197-4b75-9ee4-6c27e3ead847/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **9bbc2a1b-9be8-4132-b1e8-ab12a8d44de8/**
+            - Docker_Desktop_Cleanup_and_Disk_Recovery_Guide.pdf
+          - **a42681da-e5b6-4ad8-bc9e-686bb590cc4f/**
+            - MULTI_TENANCY_AMENDMENT.md
+          - **ae8b6dff-93b2-4681-b0a9-36fbac95d747/**
+            - Company-Policy-and-Procedure-June-1.18-V6.0.pdf
+          - **c0e29c0a-5ca7-429b-8491-8524019da0f9/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **c2cdfff7-be26-45ae-acac-18e80165a33c/**
+            - Dataset crime .csv
+          - **c904f4f9-5e51-4223-9814-fa32f26d7fe0/**
+            - Company-Policy-and-Procedure-June-1.18-V6.0.pdf
+          - **ddacedd7-5bf9-4857-8933-715dcfe68bc1/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **e385c13e-4567-443f-9b12-b7207f42cfe4/**
+            - crime_dataset_india.csv
+          - **e542cc04-9652-4533-92eb-fb2ede393f09/**
+            - Docker_Desktop_Cleanup_and_Disk_Recovery_Guide.pdf
+          - **f3baafcb-ea5a-4198-9a75-3f857898fdeb/**
+            - TypeScriptNotesForProfessionals.pdf
+          - **f60f80a0-fd3e-481f-b6c1-a7200df21656/**
+            - Data Visualization Using Power BI (1).pdf
+          - **fce0670b-7b31-4924-b625-77b50cec9c64/**
+            - Unternehmenspolitik_STEP_G_englisch.pdf
+    - **bm25_index/**
+      - a73c8605-d78f-4aa6-bfa9-23682aa155c9.pkl
+      - b21e8560-9262-41dc-8e4e-d0776eb14962.pkl
+  - **db/**
+    - __init__.py - *db/__init__.py*
+    - base.py - *db/base.py*
+    - engine.py - *db/engine.py*
+    - repository.py - *db/repository.py*
+    - seed.py - *db/seed.py*
+    - **models/**
+      - __init__.py - *db/models/__init__.py*
+      - audit.py - *db/models/audit.py*
+      - auth_token.py - *db/models/auth_token.py*
+      - conversation.py - *db/models/conversation.py*
+      - document.py - *db/models/document.py*
+      - eval.py - *db/models/eval.py*
+      - health.py - *db/models/health.py*
+      - ingestion.py - *db/models/ingestion.py*
+      - invite.py - *db/models/invite.py*
+      - security.py - *db/models/security.py*
+      - settings.py - *db/models/settings.py*
+      - telemetry.py - *db/models/telemetry.py*
+      - tool.py - *db/models/tool.py*
+      - user.py - *db/models/user.py*
+  - **pipeline/**
+    - __init__.py - *No docstring provided.*
+    - chunker.py - *pipeline/chunker.py*
+    - deduplicator.py - *pipeline/deduplicator.py*
+    - embedder.py - *pipeline/embedder.py*
+    - indexer.py - *pipeline/indexer.py*
+    - ingest.py - *pipeline/ingest.py*
+    - preprocessor.py - *pipeline/preprocessor.py*
+    - **extractors/**
+      - __init__.py - *No docstring provided.*
+      - docx_extractor.py - *pipeline/extractors/docx_extractor.py*
+      - html_extractor.py - *pipeline/extractors/html_extractor.py*
+      - image_extractor.py - *pipeline/extractors/image_extractor.py*
+      - pdf_extractor.py - *pipeline/extractors/pdf_extractor.py*
+      - text_extractor.py - *pipeline/extractors/text_extractor.py*
+  - **prompts/**
+    - __init__.py - *prompts/__init__.py*
+    - grading.py - *prompts/grading.py*
+    - templates.py - *prompts/templates.py*
+  - **retrieval/**
+    - __init__.py - *No docstring provided.*
+    - filters.py - *retrieval/filters.py*
+    - hybrid_retriever.py - *retrieval/hybrid_retriever.py*
+    - reranker.py - *retrieval/reranker.py*
+  - **routes/**
+    - __init__.py - *routes/__init__.py*
+    - analytics.py - *routes/analytics.py*
+    - auth.py - *routes/auth.py*
+    - conversations.py - *routes/conversations.py*
+    - documents.py - *routes/documents.py*
+    - health.py - *routes/health.py*
+    - ingest.py - *routes/ingest.py*
+    - ingestion.py - *routes/ingestion.py*
+    - notifications.py - *routes/notifications.py*
+    - oauth.py - *No docstring provided.*
+    - query.py - *routes/query.py*
+    - search.py - *routes/search.py*
+    - settings.py - *routes/settings.py*
+    - tools.py - *routes/tools.py*
+  - **security/**
+    - __init__.py - *No docstring provided.*
+    - auth.py - *security/auth.py*
+    - content_filter.py - *security/content_filter.py*
+    - input_guard.py - *security/input_guard.py*
+    - output_guard.py - *security/output_guard.py*
+    - passwords.py - *security/passwords.py*
+  - **services/**
+    - __init__.py - *services/__init__.py*
+    - audit.py - *services/audit.py*
+    - auth_service.py - *services/auth_service.py*
+    - blob_storage.py - *services/blob_storage.py*
+    - conversation.py - *services/conversation.py*
+    - document_grader.py - *services/document_grader.py*
+    - email_service.py - *services/email_service.py*
+    - email_templates.py - *services/email_templates.py*
+    - eval_service.py - *services/eval_service.py*
+    - health_sampler.py - *services/health_sampler.py*
+    - notification.py - *services/notification.py*
+    - query_decomposer.py - *services/query_decomposer.py*
+    - query_router.py - *services/query_router.py*
+    - rag_pipeline.py - *services/rag_pipeline.py*
+    - runtime_settings.py - *services/runtime_settings.py*
+    - semantic_cache.py - *services/semantic_cache.py*
+    - telemetry.py - *services/telemetry.py*
+    - tool_logger.py - *services/tool_logger.py*
+    - user_preferences.py - *services/user_preferences.py*
+  - **tasks/**
+    - __init__.py - *tasks/__init__.py*
+    - ingestion_tasks.py - *tasks/ingestion_tasks.py*
+  - **tools/**
+    - __init__.py - *No docstring provided.*
+    - code_search.py - *tools/code_search.py*
+    - vector_search.py - *tools/vector_search.py*
+    - web_search.py - *tools/web_search.py*

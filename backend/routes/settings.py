@@ -56,19 +56,13 @@ async def get_settings_category(
         prefs_svc = get_user_preferences()
         user_prefs = await prefs_svc.get_all_for_user(current_user.id)
         
-        settings["SERPER_API_KEY"] = user_prefs.get("SERPER_API_KEY", "")
         settings["GROQ_API_KEY"] = user_prefs.get("GROQ_API_KEY", "")
         
         if current_user.email == "jituchoudharyat@gmail.com":
             app_settings = get_settings()
             env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-            serper = dotenv.get_key(env_path, "SERPER_API_KEY") if os.path.exists(env_path) else app_settings.serper_api_key
             groq = dotenv.get_key(env_path, "GROQ_API_KEY") if os.path.exists(env_path) else getattr(app_settings, "groq_api_key", None)
             
-            if not settings.get("SERPER_API_KEY") and serper:
-                settings["SERPER_API_KEY"] = serper
-                import asyncio
-                asyncio.create_task(prefs_svc.set(current_user.id, "SERPER_API_KEY", serper))
             if not settings.get("GROQ_API_KEY") and groq:
                 settings["GROQ_API_KEY"] = groq
                 import asyncio
@@ -92,8 +86,7 @@ async def update_settings_category(
         
         if "GROQ_API_KEY" in settings:
             await prefs_svc.set(current_user.id, "GROQ_API_KEY", settings["GROQ_API_KEY"])
-        if "SERPER_API_KEY" in settings:
-            await prefs_svc.set(current_user.id, "SERPER_API_KEY", settings["SERPER_API_KEY"])
+
             
     import asyncio
     asyncio.create_task(log_action(
@@ -104,26 +97,7 @@ async def update_settings_category(
     
     return {"status": "success"}
 
-class SerperKeyRequest(BaseModel):
-    serper_api_key: str
 
-@router.post("/serper")
-async def update_serper_key(
-    body: SerperKeyRequest,
-    current_user: User = Depends(get_current_user),
-) -> Dict[str, str]:
-    """Update Serper API Key in .env and runtime config."""
-    from services.user_preferences import get_user_preferences
-    prefs_svc = get_user_preferences()
-    await prefs_svc.set(current_user.id, "SERPER_API_KEY", body.serper_api_key)
-    
-    import asyncio
-    asyncio.create_task(log_action(
-        actor_user_id=current_user.id,
-        action="settings.update.serper",
-        detail={"key_set": True}
-    ))
-    return {"status": "success"}
 
 # ── API Keys ─────────────────────────────────────────────────────────────
 

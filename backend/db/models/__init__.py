@@ -18,6 +18,7 @@ from db.models.security import ApiKey
 from db.models.audit import AuditLogEntry, Notification
 from db.models.conversation import Conversation, ConversationMessage
 from db.models.health import HealthSample
+from db.models.connector import Connector, ConnectorCredential, ConnectorSyncState, ConnectorFile
 
 __all__ = [
     "User", "UserSession",
@@ -32,4 +33,5 @@ __all__ = [
     "AuditLogEntry", "Notification",
     "Conversation", "ConversationMessage",
     "HealthSample",
+    "Connector", "ConnectorCredential", "ConnectorSyncState", "ConnectorFile",
 ]

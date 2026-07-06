@@ -65,7 +65,7 @@ class QueryEventCitation(Base):
         String(36), ForeignKey("query_events.id", ondelete="CASCADE"),
         nullable=False, index=True
     )
-    document_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    document_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     source: Mapped[Optional[str]] = mapped_column(Text)
     score: Mapped[Optional[float]] = mapped_column(Float)
 

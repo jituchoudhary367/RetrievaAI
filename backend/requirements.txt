@@ -74,3 +74,7 @@ python-docx==1.1.0
 
 # --- Exact token counting (pipeline/chunker.py, pipeline/embedder.py) ---
 tiktoken==0.8.0
+# --- Realtime Search ---
+scrapling
+scrapy
+duckduckgo-search

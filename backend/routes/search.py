@@ -24,7 +24,7 @@ from security.auth import get_current_user
 from db.models.user import User
 from db.models.user import User
 from services.telemetry import record_search_event, record_search_click
-from tools.web_search import WebSearchTool
+from services.realtime_search import RealtimeSearchService
 from tools.code_search import CodeSearchTool
 
 router = APIRouter(tags=["Search"])
@@ -123,8 +123,19 @@ async def search_web(
     current_user: User = Depends(get_current_user),
 ) -> WebSearchResponse:
     start_time = time.perf_counter()
-    tool = WebSearchTool()
-    tool_results = tool.execute(query=request.query, max_results=request.max_results)
+    service = RealtimeSearchService()
+    # service.search returns List[RetrievedChunk]. We only need a few top results.
+    service.max_results = request.max_results
+    chunks = service.search(query=request.query)
+    
+    tool_results = []
+    for c in chunks:
+        tool_results.append({
+            "title": c.metadata.get("title", ""),
+            "url": c.metadata.get("url", ""),
+            "snippet": c.text
+        })
+        
     latency_ms = (time.perf_counter() - start_time) * 1000.0
     
     return WebSearchResponse(

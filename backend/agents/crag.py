@@ -7,7 +7,7 @@ Implements the grade → correct loop:
   1. Grade retrieved chunks via ``DocumentGrader``.
   2. If grades are above threshold → return as-is.
   3. If grades are below threshold → fetch supplementary context from
-     web (``WebSearchTool``) or code (``CodeSearchTool``) based on settings.
+     web (``RealtimeSearchService``) or code (``CodeSearchTool``) based on settings.
   4. Repeat up to ``CragSettings.max_correction_retries`` times.
 
 Web/code search results are converted to synthetic ``RetrievedChunk`` objects
@@ -20,7 +20,7 @@ import logging
 from typing import List, Optional, Tuple
 
 from services.document_grader import DocumentGrader
-from tools.web_search import WebSearchTool, WebSearchError
+from services.realtime_search import RealtimeSearchService
 from tools.code_search import CodeSearchTool
 from app.models import RelevanceGrade, RetrievedChunk, RetrievalSource
 from app.config import CragSettings, get_settings
@@ -37,7 +37,7 @@ class CragAgent:
     grader:
         Inject a pre-built ``DocumentGrader``.
     web_search:
-        Inject a pre-built ``WebSearchTool``.
+        Inject a pre-built ``RealtimeSearchService``.
     code_search:
         Inject a pre-built ``CodeSearchTool``.
     settings:
@@ -47,14 +47,14 @@ class CragAgent:
     def __init__(
         self,
         grader: Optional[DocumentGrader] = None,
-        web_search: Optional[WebSearchTool] = None,
+        web_search = None,
         code_search: Optional[CodeSearchTool] = None,
         settings: Optional[CragSettings] = None,
     ) -> None:
         cfg = get_settings()
         self._cfg: CragSettings = settings or cfg.crag
         self._grader = grader or DocumentGrader()
-        self._web_search = web_search or WebSearchTool()
+        self._web_search = web_search
         self._code_search = code_search or CodeSearchTool()
 
     # ------------------------------------------------------------------
@@ -65,6 +65,7 @@ class CragAgent:
         self,
         query: str,
         chunks: List[RetrievedChunk],
+        force_web_search: bool = False,
     ) -> List[RetrievedChunk]:
         """
         Grade *chunks* and, if necessary, augment with external results.
@@ -81,11 +82,11 @@ class CragAgent:
             grades = self._grader.grade(query, current_chunks)
             all_good, needs_correction = self._assess_grades(grades)
 
-            if all_good:
+            if all_good and not force_web_search:
                 logger.info("CRAG: all chunks graded GOOD on attempt %d.", attempt + 1)
                 return current_chunks
 
-            if not needs_correction or attempt >= self._cfg.max_correction_retries:
+            if (not needs_correction and not force_web_search) or attempt >= self._cfg.max_correction_retries:
                 # Return whatever we have — don't discard partial results
                 good_chunks = [c for c, g, _ in grades if g == RelevanceGrade.GOOD]
                 return good_chunks if good_chunks else current_chunks
@@ -96,7 +97,7 @@ class CragAgent:
                 self._cfg.max_correction_retries,
             )
 
-            extra_chunks = self._fetch_extra_context(query, grades)
+            extra_chunks = self._fetch_extra_context(query, grades, force_web_search)
             if not extra_chunks:
                 logger.warning("CRAG: no extra context retrieved; stopping correction.")
                 break
@@ -132,32 +133,18 @@ class CragAgent:
         self,
         query: str,
         grades: List[Tuple[RetrievedChunk, RelevanceGrade, float]],
+        force_web_search: bool = False,
     ) -> List[RetrievedChunk]:
         """Fetch supplementary context from enabled fallback sources."""
         extra: List[RetrievedChunk] = []
 
         # Web search fallback
-        if self._cfg.web_search_fallback:
+        if self._cfg.web_search_fallback or force_web_search:
             try:
-                web_results = self._web_search.search(query, top_k=3)
-                for result in web_results:
-                    snippet = result.get("snippet", "").strip()
-                    if snippet:
-                        extra.append(
-                            RetrievedChunk(
-                                chunk_id=f"web:{hash(snippet) & 0xFFFFFFFF:08x}",
-                                document_id=result.get("url", "web"),
-                                text=snippet,
-                                source=RetrievalSource.WEB,
-                                metadata={
-                                    "title": result.get("title", ""),
-                                    "url": result.get("url", ""),
-                                    "source_type": "web",
-                                },
-                            )
-                        )
-            except WebSearchError as exc:
-                logger.warning("CRAG web search fallback failed: %s", exc)
+                if self._web_search is None:
+                    from services.realtime_search import RealtimeSearchService
+                    self._web_search = RealtimeSearchService()
+                extra.extend(self._web_search.search(query))
             except Exception as exc:  # noqa: BLE001
                 logger.warning("CRAG web search unexpected error: %s", exc)
 

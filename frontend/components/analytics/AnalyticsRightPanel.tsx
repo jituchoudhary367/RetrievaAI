@@ -6,6 +6,8 @@ interface TopQuery {
   query: string;
   intent: string;
   timestamp: string;
+  latency_ms: number;
+  retrieved_chunks: number;
 }
 
 interface Props {
@@ -48,9 +50,9 @@ export function AnalyticsRightPanel({ topQueries }: Props) {
                 </span>
                 
                 <div className="flex items-center space-x-3 text-muted-foreground pt-1 border-t border-[#1e2329]/50 mt-1">
-                  <span>324 ms</span>
+                  <span>{item.latency_ms} ms</span>
                   <span className="text-muted-foreground/50">•</span>
-                  <span>Retrieved 8 chunks</span>
+                  <span>Retrieved {item.retrieved_chunks} chunks</span>
                 </div>
               </div>
             ))

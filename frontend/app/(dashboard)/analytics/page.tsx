@@ -11,7 +11,7 @@ import { analyticsApi, DetailedMetrics } from '@/lib/api/analytics';
 
 export default function AnalyticsPage() {
   const [detailedMetrics, setDetailedMetrics] = useState<DetailedMetrics | null>(null);
-  const [topQueries, setTopQueries] = useState<{ query: string; intent: string; timestamp: string }[]>([]);
+  const [topQueries, setTopQueries] = useState<{ query: string; intent: string; timestamp: string; latency_ms: number; retrieved_chunks: number }[]>([]);
 
   const fetchAll = useCallback(async () => {
     // Detailed Metrics
@@ -30,6 +30,8 @@ export default function AnalyticsPage() {
           query: q.query || q.query_text || '',
           intent: q.intent || '',
           timestamp: q.timestamp || q.created_at || new Date().toISOString(),
+          latency_ms: q.latency_ms || 0,
+          retrieved_chunks: q.retrieved_chunks || 0,
         })));
       }
     } catch (e) {

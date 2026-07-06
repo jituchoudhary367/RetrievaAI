@@ -207,7 +207,9 @@ async def get_current_user(
 
     # Update last_seen — fire-and-forget; don't let DB timeout crash the request
     try:
-        session.last_seen_at = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        if not session.last_seen_at or (now - session.last_seen_at.replace(tzinfo=timezone.utc)).total_seconds() > 60:
+            session.last_seen_at = now
     except Exception as _lsa_exc:
         logger.debug("last_seen_at update skipped: %s", _lsa_exc)
 
