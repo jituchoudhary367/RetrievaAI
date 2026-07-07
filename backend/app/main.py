@@ -58,19 +58,26 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error("DB seeding failed: %s", exc, exc_info=True)
 
-    # 3 — Start background health sampler
+    # 3 — Start background tasks
     from services.health_sampler import run_health_sampler
     sampler_task = asyncio.create_task(run_health_sampler(), name="health_sampler")
+
+    from services.connector_scheduler import run_connector_scheduler
+    connector_scheduler_task = asyncio.create_task(run_connector_scheduler(), name="connector_scheduler")
+
 
     yield
 
     # 4 — Shutdown
     logger.info("Shutting down RAG API Service...")
     sampler_task.cancel()
-    try:
-        await sampler_task
-    except asyncio.CancelledError:
-        pass
+    connector_scheduler_task.cancel()
+    for task in [sampler_task, connector_scheduler_task]:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
 
 
 def create_app() -> FastAPI:
@@ -233,6 +240,10 @@ def create_app() -> FastAPI:
     app.include_router(settings_router, prefix=auth_prefix)
     app.include_router(conversations_router, prefix=auth_prefix)
     app.include_router(notifications_router, prefix=auth_prefix)
+
+    from routes.connectors import router as connectors_router
+    app.include_router(connectors_router, prefix=auth_prefix)
+
 
     return app
 

@@ -9,6 +9,8 @@ import { postRequestPasswordReset } from '@/lib/api/auth';
 import { useHealthPolling } from '@/lib/hooks/useHealthPolling';
 import { getUserInfo, getRoles } from '@/lib/auth/session';
 import { Key, Shield, Trash2, Plus, Copy, Eye, EyeOff, LogOut, RefreshCw, Clock } from 'lucide-react';
+import ConnectorsPanel from '@/components/connectors/ConnectorsPanel';
+
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -202,6 +204,11 @@ export default function SettingsPage() {
                   {roles.join(', ') || 'VIEWER'}
                 </span>
               } />
+            </SectionCard>
+
+            {/* Data Connectors (Google Drive, etc.) */}
+            <SectionCard title="Data Connectors">
+              <ConnectorsPanel />
             </SectionCard>
 
             {/* Provider Integrations */}

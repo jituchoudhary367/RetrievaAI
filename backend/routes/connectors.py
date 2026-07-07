@@ -219,19 +219,22 @@ async def google_drive_callback(
         return RedirectResponse(url=frontend_url)
 
 
-@router.delete("/{connector_id}", status_code=204)
+@router.delete("/{connector_id}", status_code=204, response_model=None)
 async def disconnect_connector(
     connector_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
+):
     """Disconnect a connector and clean up credentials."""
+    from fastapi import Response as FastResponse
     from services.connector_service import disconnect_connector as svc_disconnect
 
     try:
         await svc_disconnect(db, current_user.id, connector_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    return FastResponse(status_code=204)
+
 
 
 @router.post("/{connector_id}/sync")

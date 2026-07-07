@@ -359,3 +359,55 @@ async def get_detailed_metrics(
         ]
     }
 
+
+# ── Connector Analytics (Phase 15) ───────────────────────────────────────────
+
+@router.get("/connectors")
+async def get_connector_analytics(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Connector sync analytics — files synced, indexed, failed per connector.
+    """
+    from db.models.connector import Connector, ConnectorFile, ConnectorSyncState
+
+    result = await db.execute(
+        select(Connector).where(Connector.user_id == current_user.id)
+    )
+    connectors = result.scalars().all()
+
+    connector_stats = []
+    for connector in connectors:
+        # File counts by status
+        file_counts = await db.execute(
+            select(ConnectorFile.sync_status, func.count().label("cnt"))
+            .where(ConnectorFile.connector_id == connector.id)
+            .group_by(ConnectorFile.sync_status)
+        )
+        counts = {row.sync_status: row.cnt for row in file_counts.all()}
+
+        sync_state = connector.sync_state
+        connector_stats.append({
+            "connector_id": connector.id,
+            "provider": connector.provider,
+            "display_name": connector.display_name,
+            "status": connector.status,
+            "files_indexed": counts.get("indexed", 0),
+            "files_failed": counts.get("failed", 0),
+            "files_pending": counts.get("pending", 0),
+            "files_deleted": counts.get("deleted", 0),
+            "last_sync_at": (
+                sync_state.last_sync_completed_at.isoformat()
+                if sync_state and sync_state.last_sync_completed_at else None
+            ),
+            "last_sync_status": sync_state.last_sync_status if sync_state else None,
+            "avg_sync_files": sync_state.files_discovered if sync_state else 0,
+        })
+
+    return {
+        "total_connectors": len(connectors),
+        "connected": sum(1 for c in connectors if c.status == "connected"),
+        "syncing": sum(1 for c in connectors if c.status == "syncing"),
+        "connectors": connector_stats,
+    }

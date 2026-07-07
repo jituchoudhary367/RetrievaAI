@@ -383,9 +383,43 @@ class RealtimeSearchSettings(BaseSettings):
     concurrent_fetches: int = Field(default=3, ge=1)
 
 
+class ConnectorSettings(BaseSettings):
+    """Configuration for the connector framework (Google Drive, etc.)."""
+
+    model_config = SettingsConfigDict(env_prefix="CONNECTOR_", extra="ignore")
+
+    # Google Drive OAuth (can reuse existing OAUTH_GOOGLE_* or set separate)
+    google_drive_client_id: Optional[str] = Field(default=None)
+    google_drive_client_secret: Optional[str] = Field(default=None, repr=False)
+    google_drive_redirect_uri: str = Field(
+        default="http://localhost:8000/api/connectors/google-drive/callback"
+    )
+    # Optional webhook URL (set to your public HTTPS URL, e.g. from ngrok)
+    google_drive_webhook_url: Optional[str] = Field(default=None)
+
+    # Celery task queue
+    celery_broker_url: str = Field(default="redis://localhost:6379/1")
+    celery_result_backend: str = Field(default="redis://localhost:6379/2")
+
+    # Auto-sync settings
+    default_sync_interval_minutes: int = Field(default=30, ge=1)
+    max_retries: int = Field(default=3, ge=0)
+
+    @model_validator(mode="after")
+    def _fallback_to_oauth_google_creds(self) -> "ConnectorSettings":
+        """
+        Fall back to OAUTH_GOOGLE_CLIENT_ID/SECRET if CONNECTOR_GOOGLE_DRIVE_* not set.
+        This lets users reuse their existing Google OAuth credentials for Drive.
+        """
+        import os
+        if not self.google_drive_client_id:
+            self.google_drive_client_id = os.environ.get("OAUTH_GOOGLE_CLIENT_ID")
+        if not self.google_drive_client_secret:
+            self.google_drive_client_secret = os.environ.get("OAUTH_GOOGLE_CLIENT_SECRET")
+        return self
 
 
-# --------------------------------------------------------------------------- #
+
 # Root settings
 # --------------------------------------------------------------------------- #
 
@@ -449,6 +483,8 @@ class Settings(BaseSettings):
     email: EmailSettings = Field(default_factory=EmailSettings)
     oauth: OAuthSettings = Field(default_factory=OAuthSettings)
     realtime_search: RealtimeSearchSettings = Field(default_factory=RealtimeSearchSettings)
+    connectors: ConnectorSettings = Field(default_factory=ConnectorSettings)
+
 
     # ----------------------------------------------------------------- #
     # Validators
