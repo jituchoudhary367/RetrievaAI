@@ -109,6 +109,7 @@ class RedisEmbeddingCache(EmbeddingCache):
             raw = self._client.get(self._prefix + key)
             if raw is None:
                 return None
+            # pyrefly: ignore [missing-attribute]
             return [float(v) for v in raw.split(",")]
         except Exception as exc:  # noqa: BLE001
             logger.warning("RedisEmbeddingCache.get failed: %s", exc)
@@ -220,6 +221,7 @@ class Embedder:
             return []
         model = self._get_sparse_model()
         # FastEmbed handles its own batching.
+        # pyrefly: ignore [missing-attribute]
         return list(model.embed(list(texts)))
 
     @lru_cache(maxsize=1000)

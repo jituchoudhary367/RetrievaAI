@@ -244,6 +244,10 @@ def create_app() -> FastAPI:
     from routes.connectors import router as connectors_router
     app.include_router(connectors_router, prefix=auth_prefix)
 
+    # Enterprise AI Control Center router (additive — no existing routes changed)
+    from routes.workspace import router as workspace_router
+    app.include_router(workspace_router, prefix=auth_prefix)
+
 
     return app
 

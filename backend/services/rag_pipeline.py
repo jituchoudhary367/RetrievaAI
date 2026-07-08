@@ -116,11 +116,18 @@ class RAGPipeline:
         except SecurityError as exc:
             raise  # Let the route handler convert to ErrorResponse
 
-        # 1.5 Fetch keys
+        # 1.5 Resolve workspace-scoped provider (falls back to global defaults if not configured)
         cfg = get_settings()
         user_api_keys = user_api_keys or {}
-        llm_api_key = user_api_keys.get("GROQ_API_KEY") or cfg.resolved_llm_api_key()
-        embed_api_key = cfg.resolved_embedding_api_key()
+        try:
+            from services.workspace.provider_factory import resolve_llm_for_user, resolve_embedding_for_user
+            _ws_llm = await resolve_llm_for_user(user_id, user_api_keys)
+            _ws_emb = await resolve_embedding_for_user(user_id)
+            llm_api_key = _ws_llm["api_key"] or cfg.resolved_llm_api_key()
+            embed_api_key = _ws_emb["api_key"] or cfg.resolved_embedding_api_key()
+        except Exception:
+            llm_api_key = user_api_keys.get("GROQ_API_KEY") or cfg.resolved_llm_api_key()
+            embed_api_key = cfg.resolved_embedding_api_key()
 
         # Override embedder settings for this request
         self._retriever._embedder._cfg = self._retriever._embedder._cfg.model_copy(update={"api_key": embed_api_key})
@@ -286,13 +293,19 @@ class RAGPipeline:
             sequence=seq,
         )
         seq += 1
-        # 1.5 Fetch keys
+        # 1.5 Resolve workspace-scoped provider (falls back to global defaults if not configured)
         cfg = get_settings()
         user_api_keys = user_api_keys or {}
-        llm_api_key = user_api_keys.get("GROQ_API_KEY") or cfg.resolved_llm_api_key()
-        embed_api_key = cfg.resolved_embedding_api_key()
+        try:
+            from services.workspace.provider_factory import resolve_llm_for_user, resolve_embedding_for_user
+            _ws_llm = await resolve_llm_for_user(user_id, user_api_keys)
+            _ws_emb = await resolve_embedding_for_user(user_id)
+            llm_api_key = _ws_llm["api_key"] or cfg.resolved_llm_api_key()
+            embed_api_key = _ws_emb["api_key"] or cfg.resolved_embedding_api_key()
+        except Exception:
+            llm_api_key = user_api_keys.get("GROQ_API_KEY") or cfg.resolved_llm_api_key()
+            embed_api_key = cfg.resolved_embedding_api_key()
 
-        
         # Override embedder settings for this request
         self._retriever._embedder._cfg = self._retriever._embedder._cfg.model_copy(update={"api_key": embed_api_key})
 
