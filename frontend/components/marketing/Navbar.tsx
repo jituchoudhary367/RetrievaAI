@@ -28,11 +28,11 @@ export function Navbar() {
         <div className="flex items-center justify-between h-14">
           
           {/* Left: Logo and Brand */}
-          <Link href="/" className="flex items-center space-x-2 group">
-            <div className="w-7 h-7 relative flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
-              <img src="/logo.ico" alt="RetrievaAI Logo" className="w-7 h-7 object-contain" />
+          <Link href="/" className="flex items-center space-x-3 group">
+            <div className="w-10 h-10 relative flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
+              <img src="/logo.ico" alt="RetrievaAI Logo" className="w-10 h-10 object-contain" />
             </div>
-            <span className="font-semibold text-white tracking-tight text-sm">RetrievaAI</span>
+            <span className="font-semibold text-white tracking-tight text-base">RetrievaAI</span>
           </Link>
 
           {/* Center: Navigation Links */}
