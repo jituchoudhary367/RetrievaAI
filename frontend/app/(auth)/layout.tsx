@@ -18,9 +18,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         
         {/* Logo */}
         <Link href="/" className="relative z-10 flex items-center gap-3 w-fit group mb-12">
-          <div className="flex items-center justify-center relative w-10 h-10">
+          <div className="flex items-center justify-center relative w-14 h-14">
             {/* Custom Logo */}
-            <img src="/logo.ico" alt="RetrievaAI Logo" className="w-10 h-10 object-contain drop-shadow-md" />
+            <img src="/logo.ico" alt="RetrievaAI Logo" className="w-14 h-14 object-contain drop-shadow-md" />
           </div>
           <div className="flex flex-col">
             <span className="font-bold text-xl tracking-wider text-white uppercase leading-none mb-1">RetrievaAI</span>
@@ -94,7 +94,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="w-full max-w-[420px] animate-in fade-in slide-in-from-bottom-4 duration-700 mt-12 sm:mt-0 relative z-10">
           {/* Mobile logo */}
           <div className="md:hidden flex items-center gap-2 mb-10 justify-center">
-            <img src="/logo.ico" alt="RetrievaAI Logo" className="w-8 h-8 object-contain drop-shadow-md" />
+            <img src="/logo.ico" alt="RetrievaAI Logo" className="w-12 h-12 object-contain drop-shadow-md" />
             <span className="font-bold text-lg tracking-wider uppercase text-white">RetrievaAI</span>
           </div>
           

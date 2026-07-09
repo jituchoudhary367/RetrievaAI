@@ -14,8 +14,8 @@ export function Footer() {
           {/* Brand Info */}
           <div className="md:col-span-12 lg:col-span-5 bg-[#05070B] p-8 lg:p-12 border-b border-[rgba(255,255,255,0.04)] lg:border-b-0">
             <Link href="/" className="flex items-center space-x-2 group mb-6">
-              <div className="w-5 h-5 relative flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
-                <img src="/logo.ico" alt="RetrievaAI Logo" className="w-5 h-5 object-contain" />
+              <div className="w-7 h-7 relative flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
+                <img src="/logo.ico" alt="RetrievaAI Logo" className="w-7 h-7 object-contain" />
               </div>
               <span className="font-semibold text-white tracking-tight text-sm">RetrievaAI</span>
             </Link>
