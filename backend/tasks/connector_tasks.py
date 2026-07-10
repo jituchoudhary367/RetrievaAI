@@ -186,6 +186,28 @@ def sync_connector_full_task(self, connector_id: str) -> dict:
             if not result.has_more:
                 break
             page_token = result.next_page_token
+            
+        import os
+        use_framework = os.environ.get("USE_CONNECTOR_FRAMEWORK", "false").lower() == "true"
+        if use_framework and connector.provider == "google_drive":
+            try:
+                from connectors.google_drive.adapter import GoogleDriveConnector
+                adapter = GoogleDriveConnector()
+                async def _shadow_sync():
+                    await adapter.authenticate({"access_token": access_token})
+                    new_files = []
+                    async for f in adapter.full_sync():
+                        new_files.append(f.external_id)
+                    return new_files
+                shadow_ids = asyncio.run(_shadow_sync())
+                old_ids = [fid for fid, _, _, _ in all_file_ids]
+                diff = set(old_ids) ^ set(shadow_ids)
+                if diff:
+                    logger.error("SHADOW MODE MISMATCH in full_sync! Diff: %s", diff)
+                else:
+                    logger.info("SHADOW MODE SUCCESS: full_sync returned identical files.")
+            except Exception as shadow_exc:
+                logger.error("SHADOW MODE FAILED: %s", shadow_exc, exc_info=True)
 
         logger.info("Full sync for %s: discovered %d files", connector_id, files_discovered)
 
