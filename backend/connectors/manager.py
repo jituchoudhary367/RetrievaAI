@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
-
-from connectors.registry import ConnectorRegistry
 from connectors.models import ConnectorStatusEnum
 
 logger = logging.getLogger(__name__)
@@ -32,7 +30,11 @@ class ConnectorManager:
 
     def __init__(self, provider_name: str) -> None:
         self._provider_name = provider_name
-        self._connector = ConnectorRegistry.create(provider_name)
+        if provider_name == "google_drive":
+            from connectors.google_drive.connector import GoogleDriveConnector
+            self._connector = GoogleDriveConnector()
+        else:
+            raise ValueError(f"Unknown legacy connector provider: {provider_name}")
 
     @property
     def provider_name(self) -> str:

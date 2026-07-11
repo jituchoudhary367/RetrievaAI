@@ -11,6 +11,8 @@ from .mapper import map_drive_file_to_metadata
 
 logger = logging.getLogger(__name__)
 
+ADAPTER_VERSION = "1.0.0"
+
 class GoogleDriveConnector(BaseConnector):
     """
     Reference implementation of the new BaseConnector contract for Google Drive.
