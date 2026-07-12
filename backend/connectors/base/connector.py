@@ -20,9 +20,17 @@ class BaseConnector(ABC):
     async def authenticate(self, credentials: Dict[str, Any]) -> None:
         pass
 
-    @abstractmethod
-    async def refresh_token(self) -> None:
-        pass
+    async def get_auth_url(self, state: str) -> str:
+        raise NotImplementedError()
+
+    async def exchange_code(self, auth_code: str, redirect_uri: str) -> Dict[str, Any]:
+        raise NotImplementedError()
+
+    async def refresh_token(self, refresh_token: str) -> Dict[str, Any]:
+        raise NotImplementedError()
+
+    async def revoke_token(self, token: str) -> None:
+        raise NotImplementedError()
 
     @abstractmethod
     def capabilities(self) -> CapabilitySet:

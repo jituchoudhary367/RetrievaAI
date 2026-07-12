@@ -40,17 +40,24 @@ class GoogleDriveConnector(BaseConnector):
         self._access_token = credentials.get("access_token")
         self._refresh_token = credentials.get("refresh_token")
         if not self._access_token:
-            raise ValueError("GoogleDriveConnector requires an access_token in credentials.")
+            raise ValueError("GoogleDriveAdapter requires an access_token")
 
-    async def refresh_token(self) -> None:
+    async def get_auth_url(self, state: str) -> str:
+        from .auth import build_auth_url
+        from app.config import get_settings
+        return build_auth_url(state, get_settings().connectors.google_drive_redirect_uri)
+
+    async def exchange_code(self, auth_code: str, redirect_uri: str) -> Dict[str, Any]:
+        from .auth import exchange_code
+        return await exchange_code(auth_code, redirect_uri)
+
+    async def refresh_token(self, refresh_token: str) -> Dict[str, Any]:
         from .auth import refresh_access_token
-        if not self._refresh_token:
-            raise ValueError("No refresh_token available.")
-        
-        token_data = await refresh_access_token(self._refresh_token)
-        self._access_token = token_data["access_token"]
-        if "refresh_token" in token_data:
-            self._refresh_token = token_data["refresh_token"]
+        return await refresh_access_token(refresh_token)
+
+    async def revoke_token(self, token: str) -> None:
+        from .auth import revoke_token
+        await revoke_token(token)
 
     async def health_check(self) -> Dict[str, Any]:
         if not self._access_token:

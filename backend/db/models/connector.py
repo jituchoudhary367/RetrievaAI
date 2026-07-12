@@ -25,8 +25,29 @@ from sqlalchemy import (
     Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 from db.base import Base, TimestampMixin, _new_uuid
+from services.encryption import encrypt, decrypt
+
+
+class EncryptedString(TypeDecorator):
+    """
+    Transparently encrypts strings on the way into the DB
+    and decrypts them on the way out using AES-256-GCM.
+    """
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return encrypt(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return decrypt(value)
 
 
 class Connector(Base, TimestampMixin):
@@ -87,8 +108,8 @@ class ConnectorCredential(Base):
         nullable=False, unique=True, index=True
     )
     # Stored tokens (ideally encrypted)
-    access_token: Mapped[Optional[str]] = mapped_column(Text)
-    refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=False)
+    access_token: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    refresh_token: Mapped[Optional[str]] = mapped_column(EncryptedString, nullable=False)
     token_type: Mapped[str] = mapped_column(String(50), default="Bearer")
     scopes: Mapped[Optional[str]] = mapped_column(Text)  # space-separated
     # ISO datetime string of when the access token expires

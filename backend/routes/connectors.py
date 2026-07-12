@@ -237,6 +237,40 @@ async def disconnect_connector(
 
 
 
+@router.post("/{connector_id}/pause")
+async def pause_connector(
+    connector_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, str]:
+    """Pause automatic syncs for a connector."""
+    from services.connector_service import pause_connector as svc_pause
+    try:
+        await svc_pause(db, current_user.id, connector_id)
+        return {"status": "paused"}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/{connector_id}/resume")
+async def resume_connector(
+    connector_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, str]:
+    """Resume automatic syncs for a connector."""
+    from services.connector_service import resume_connector as svc_resume
+    try:
+        await svc_resume(db, current_user.id, connector_id)
+        return {"status": "resumed"}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.post("/{connector_id}/sync")
 async def trigger_sync(
     connector_id: str,

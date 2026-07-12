@@ -27,7 +27,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from connectors.google_drive.auth import is_token_expired, refresh_access_token
-from connectors.manager import ConnectorManager
 from connectors.models import ConnectorStatusEnum, SyncMode
 from db.models.connector import (
     Connector,
@@ -73,8 +72,9 @@ async def _get_fresh_token(
 
 async def get_auth_url(provider: str, state: str) -> str:
     """Get the OAuth authorization URL for a connector provider."""
-    manager = ConnectorManager(provider)
-    return await manager.get_auth_url(state=state)
+    from connectors.registry import ConnectorRegistry
+    adapter = ConnectorRegistry.get(provider)()
+    return await adapter.get_auth_url(state=state)
 
 
 async def connect_connector(
@@ -96,16 +96,17 @@ async def connect_connector(
     4. Create ConnectorSyncState
     5. Trigger initial full sync (async)
     """
-    manager = ConnectorManager(provider)
+    from connectors.registry import ConnectorRegistry
+    adapter = ConnectorRegistry.get(provider)()
 
     # 1. Exchange code for tokens
-    token_data = await manager.exchange_code(auth_code, redirect_uri)
+    token_data = await adapter.exchange_code(auth_code, redirect_uri)
 
     # 2. Create connector row
     connector = Connector(
         user_id=user_id,
         provider=provider,
-        display_name=manager.display_name,
+        display_name=provider,
         status=ConnectorStatusEnum.CONNECTED.value,
         root_folder_id=root_folder_id,
         root_folder_name=root_folder_name,
@@ -133,8 +134,8 @@ async def connect_connector(
 
     # 5. Trigger full sync in background
     try:
-        from tasks.connector_tasks import sync_connector_full_task
-        sync_connector_full_task.delay(connector.id)
+        from connectors.tasks import discover_files_task
+        discover_files_task.delay(connector.id, is_incremental=False)
         logger.info("Full sync task queued for connector %s", connector.id)
     except Exception as exc:
         logger.warning("Could not queue sync task (Celery unavailable?): %s", exc)
@@ -164,12 +165,13 @@ async def disconnect_connector(
     if not connector:
         raise ValueError(f"Connector {connector_id} not found for user {user_id}")
 
-    manager = ConnectorManager(connector.provider)
+    from connectors.registry import ConnectorRegistry
+    adapter = ConnectorRegistry.get(connector.provider)()
 
     # Revoke tokens
     if connector.credential:
         try:
-            await manager.revoke_token(connector.credential.access_token or connector.credential.refresh_token)
+            await adapter.revoke_token(connector.credential.access_token or connector.credential.refresh_token)
         except Exception as exc:
             logger.warning("Token revocation failed (may already be invalid): %s", exc)
 
@@ -178,7 +180,8 @@ async def disconnect_connector(
         if sync_state and sync_state.webhook_channel_id:
             try:
                 token = connector.credential.access_token or ""
-                await manager.stop_watch(token, sync_state.webhook_channel_id, sync_state.webhook_resource_id or "")
+                if hasattr(adapter, "stop_watch"):
+                    await adapter.stop_watch(token, sync_state.webhook_channel_id, sync_state.webhook_resource_id or "")
             except Exception as exc:
                 logger.warning("Webhook stop failed: %s", exc)
 
@@ -187,6 +190,45 @@ async def disconnect_connector(
     await db.commit()
     logger.info("Connector %s disconnected for user %s", connector_id, user_id)
 
+
+async def pause_connector(
+    db: AsyncSession,
+    user_id: str,
+    connector_id: str,
+) -> bool:
+    """Pause automatic syncs for a connector."""
+    result = await db.execute(
+        select(Connector)
+        .where(Connector.id == connector_id, Connector.user_id == user_id)
+    )
+    connector = result.scalar_one_or_none()
+    if not connector:
+        raise ValueError(f"Connector {connector_id} not found")
+        
+    connector.auto_sync = False
+    connector.status = ConnectorStatusEnum.PAUSED.value if hasattr(ConnectorStatusEnum, 'PAUSED') else "paused"
+    await db.commit()
+    return True
+
+
+async def resume_connector(
+    db: AsyncSession,
+    user_id: str,
+    connector_id: str,
+) -> bool:
+    """Resume automatic syncs for a connector."""
+    result = await db.execute(
+        select(Connector)
+        .where(Connector.id == connector_id, Connector.user_id == user_id)
+    )
+    connector = result.scalar_one_or_none()
+    if not connector:
+        raise ValueError(f"Connector {connector_id} not found")
+        
+    connector.auto_sync = True
+    connector.status = ConnectorStatusEnum.CONNECTED.value
+    await db.commit()
+    return True
 
 # ── Sync Operations ───────────────────────────────────────────────────────────
 
@@ -214,12 +256,11 @@ async def trigger_sync(
     await db.commit()
 
     try:
+        from connectors.tasks import discover_files_task
         if mode == SyncMode.FULL:
-            from tasks.connector_tasks import sync_connector_full_task
-            sync_connector_full_task.delay(connector_id)
+            discover_files_task.delay(connector_id, is_incremental=False)
         else:
-            from tasks.connector_tasks import sync_connector_incremental_task
-            sync_connector_incremental_task.delay(connector_id)
+            discover_files_task.delay(connector_id, is_incremental=True)
     except Exception as exc:
         logger.error("Failed to queue sync task: %s", exc)
         connector.status = ConnectorStatusEnum.ERROR.value

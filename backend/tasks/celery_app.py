@@ -23,7 +23,7 @@ def create_celery_app() -> Celery:
         "rag_connectors",
         broker=broker,
         backend=backend,
-        include=["tasks.connector_tasks"],
+        include=["tasks.connector_tasks", "connectors.tasks"],
     )
 
     app.conf.update(

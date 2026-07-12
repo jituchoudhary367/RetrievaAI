@@ -10,7 +10,7 @@ class SyncCursor(BaseModel):
     """
     Opaque token or watermark used for incremental syncs.
     """
-    token: str
+    token: Optional[str] = None
 
 class SyncResult(BaseModel):
     """
