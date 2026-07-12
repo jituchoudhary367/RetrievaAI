@@ -42,6 +42,13 @@ def create_celery_app() -> Celery:
         task_time_limit=3600,
         # Worker prefetch: one task at a time per worker for long-running downloads
         worker_prefetch_multiplier=1,
+        # Beat Schedule
+        beat_schedule={
+            "schedule_connectors_task": {
+                "task": "connectors.tasks.schedule_connectors_task",
+                "schedule": 60.0,
+            }
+        }
     )
 
     return app

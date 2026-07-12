@@ -177,20 +177,20 @@ def refresh_token_task(self, connector_id: str) -> dict:
     engine, db = _get_sync_db()
     try:
         connector = db.get(Connector, connector_id)
-        if not connector or not connector.credential:
+        if not connector or not connector.credential or not connector.credential.refresh_token:
             return {"status": "error"}
 
         adapter_class = ConnectorRegistry.get(connector.provider)
         adapter = adapter_class()
 
         async def _refresh():
-            await adapter.authenticate({"refresh_token": connector.credential.refresh_token})
-            await adapter.refresh_token()
-            return adapter._access_token
+            return await adapter.refresh_token(connector.credential.refresh_token)
             
-        new_access_token = asyncio.run(_refresh())
-        if new_access_token:
-            connector.credential.access_token = new_access_token
+        token_data = asyncio.run(_refresh())
+        if token_data and "access_token" in token_data:
+            connector.credential.access_token = token_data["access_token"]
+            if "expires_at" in token_data:
+                connector.credential.expires_at = token_data["expires_at"]
             db.commit()
             
         return {"status": "success"}
@@ -199,3 +199,9 @@ def refresh_token_task(self, connector_id: str) -> dict:
     finally:
         db.close()
         engine.dispose()
+
+@celery_app.task
+def schedule_connectors_task() -> None:
+    from connectors.scheduler import evaluate_and_schedule_connectors
+    evaluate_and_schedule_connectors()
+
