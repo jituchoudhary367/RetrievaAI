@@ -90,6 +90,35 @@ class Connector(Base, TimestampMixin):
     files: Mapped[list["ConnectorFile"]] = relationship(
         back_populates="connector", cascade="all, delete-orphan"
     )
+    health_samples: Mapped[list["ConnectorHealth"]] = relationship(
+        back_populates="connector", cascade="all, delete-orphan"
+    )
+
+class ConnectorHealth(Base):
+    """
+    Health metrics snapshot for a specific connector.
+    """
+    __tablename__ = "connector_health"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid
+    )
+    connector_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("connectors.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    sampled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False, index=True
+    )
+    
+    # Metrics
+    overall_status: Mapped[str] = mapped_column(String(50), default="healthy")
+    oauth_expiry_minutes: Mapped[Optional[int]] = mapped_column(Integer)
+    webhook_status: Mapped[Optional[str]] = mapped_column(String(50))
+    failed_files: Mapped[int] = mapped_column(Integer, default=0)
+    synced_files: Mapped[int] = mapped_column(Integer, default=0)
+    
+    connector: Mapped["Connector"] = relationship(back_populates="health_samples")
 
 
 class ConnectorCredential(Base):

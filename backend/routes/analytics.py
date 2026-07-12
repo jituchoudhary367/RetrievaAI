@@ -160,6 +160,35 @@ async def get_system_health(
         for s in reversed(samples)
     ]
 
+@router.get("/connector-health")
+async def get_connector_health(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("TENANT_ADMIN", "admin"))
+) -> List[Dict[str, Any]]:
+    # Dynamic import to avoid circular dependency
+    from db.models.connector import ConnectorHealth, Connector
+    result = await db.execute(
+        select(ConnectorHealth, Connector.display_name, Connector.provider)
+        .join(Connector, Connector.id == ConnectorHealth.connector_id)
+        .order_by(ConnectorHealth.sampled_at.desc())
+        .limit(100)
+    )
+    samples = result.all()
+    return [
+        {
+            "sampled_at": s[0].sampled_at.isoformat(),
+            "connector_id": s[0].connector_id,
+            "display_name": s[1],
+            "provider": s[2],
+            "overall_status": s[0].overall_status,
+            "oauth_expiry_minutes": s[0].oauth_expiry_minutes,
+            "webhook_status": s[0].webhook_status,
+            "failed_files": s[0].failed_files,
+            "synced_files": s[0].synced_files,
+        }
+        for s in samples
+    ]
+
 @router.get("/detailed-metrics")
 async def get_detailed_metrics(
     days: int = Query(default=30),
