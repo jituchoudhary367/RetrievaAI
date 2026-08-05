@@ -136,7 +136,7 @@ class DropboxAdapter(BaseConnector):
         if not self._access_token:
             raise ConnectorAuthError("Not authenticated")
 
-        dropbox_cursor = cursor.provider_cursor if cursor else None
+        dropbox_cursor = cursor.token if cursor else None
 
         if not dropbox_cursor:
             # No cursor — fall back to full sync
@@ -162,7 +162,7 @@ class DropboxAdapter(BaseConnector):
             if not has_more or not new_cursor:
                 # Update the cursor on the SyncCursor object so the orchestrator persists it
                 if new_cursor and cursor:
-                    cursor.provider_cursor = new_cursor
+                    cursor.token = new_cursor
                 break
 
             data = await self._post(
@@ -175,12 +175,12 @@ class DropboxAdapter(BaseConnector):
         Yield path_lower strings of deleted files from the last delta.
         The orchestrator maps them to internal IDs and tombstones the records.
         """
-        if not self._access_token or not cursor or not cursor.provider_cursor:
+        if not self._access_token or not cursor or not cursor.token:
             return
 
         data = await self._post(
             f"{FILES_API}/list_folder/continue",
-            {"cursor": cursor.provider_cursor},
+            {"cursor": cursor.token},
         )
 
         for entry in data.get("entries", []):
