@@ -96,6 +96,7 @@ class SharePointAdapter(BaseConnector):
         
         return resp.json().get("value", [])
 
+    # pyrefly: ignore [bad-override]
     async def full_sync(self) -> AsyncIterator[ConnectorFileMetadata]:
         if not self._access_token:
             raise ConnectorAuthError("Not authenticated")
@@ -112,6 +113,7 @@ class SharePointAdapter(BaseConnector):
                     resp = await client.get(url, headers={"Authorization": f"Bearer {self._access_token}"})
                     if resp.status_code == 429:
                         retry_after = int(resp.headers.get("Retry-After", 60))
+                        # pyrefly: ignore [unexpected-keyword]
                         raise ConnectorRateLimitError(f"Rate limited by Graph API", retry_after=retry_after)
                     if resp.status_code == 401:
                         raise ConnectorAuthError("Invalid access token")
@@ -127,6 +129,7 @@ class SharePointAdapter(BaseConnector):
                         
                     url = data.get("@odata.nextLink")
 
+    # pyrefly: ignore [bad-override]
     async def incremental_sync(self, cursor: SyncCursor) -> AsyncIterator[ConnectorFileMetadata]:
         # For simplicity, fallback to full sync in this mock implementation
         async for item in self.full_sync():

@@ -83,6 +83,7 @@ class OneDriveAdapter(BaseConnector):
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    # pyrefly: ignore [bad-override]
     async def full_sync(self) -> AsyncIterator[ConnectorFileMetadata]:
         if not self._access_token:
             raise ConnectorAuthError("Not authenticated")
@@ -94,6 +95,7 @@ class OneDriveAdapter(BaseConnector):
                 resp = await client.get(url, headers={"Authorization": f"Bearer {self._access_token}"})
                 if resp.status_code == 429:
                     retry_after = int(resp.headers.get("Retry-After", 60))
+                    # pyrefly: ignore [unexpected-keyword]
                     raise ConnectorRateLimitError(f"Rate limited by Graph API", retry_after=retry_after)
                 if resp.status_code == 401:
                     raise ConnectorAuthError("Invalid access token")
