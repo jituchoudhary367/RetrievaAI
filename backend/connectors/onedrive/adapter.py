@@ -34,6 +34,12 @@ class OneDriveAdapter(BaseConnector):
             Capability.METADATA_EXTRACTION,
             Capability.BINARY_FILE_SUPPORT
         }
+
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "access_token", "label": "Microsoft Graph Access Token", "type": "password", "required": True},
+        ]
         
     async def authenticate(self, credentials: Dict[str, Any]) -> None:
         self._access_token = credentials.get("access_token")

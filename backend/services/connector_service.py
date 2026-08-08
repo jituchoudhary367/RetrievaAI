@@ -53,7 +53,11 @@ async def _get_fresh_token(
     if not cred:
         raise ValueError(f"No credentials stored for connector {connector.id}")
 
-    if not is_token_expired(cred.expires_at):
+    if cred.token_type == "Direct":
+        # Direct credentials (JSON string stored in refresh_token) don't expire
+        return cred.refresh_token
+
+    if not cred.expires_at or not is_token_expired(cred.expires_at):
         return cred.access_token
 
     # Token is expired — refresh it
@@ -141,6 +145,71 @@ async def connect_connector(
         logger.warning("Could not queue sync task (Celery unavailable?): %s", exc)
         # Fallback: mark as connected without syncing
         # User can trigger sync manually from the UI
+
+    return connector
+
+
+async def connect_connector_direct(
+    db: AsyncSession,
+    user_id: str,
+    provider: str,
+    credentials: dict,
+    root_folder_id: Optional[str] = None,
+    root_folder_name: Optional[str] = None,
+) -> Connector:
+    """
+    Register a new connector using direct credentials (API keys, connection strings)
+    instead of an OAuth flow.
+    """
+    import json
+    from connectors.registry import ConnectorRegistry
+    adapter = ConnectorRegistry.get(provider)()
+
+    # 1. Validate credentials
+    await adapter.authenticate(credentials)
+    
+    # 2. Optionally run health check to ensure they are valid
+    if hasattr(adapter, "health_check"):
+        health = await adapter.health_check()
+        if health.get("status") != "ok":
+            raise ValueError(f"Failed to connect: {health.get('message', 'Unknown error')}")
+
+    # 3. Create connector row
+    connector = Connector(
+        user_id=user_id,
+        provider=provider,
+        display_name=provider,
+        status=ConnectorStatusEnum.CONNECTED.value,
+        root_folder_id=root_folder_id,
+        root_folder_name=root_folder_name,
+        auto_sync=True,
+    )
+    db.add(connector)
+    await db.flush()
+
+    # 4. Store credentials as JSON string in the refresh_token field
+    # since it's an EncryptedString and nullable=False
+    cred = ConnectorCredential(
+        connector_id=connector.id,
+        access_token=None,
+        refresh_token=json.dumps(credentials),
+        token_type="Direct",
+    )
+    db.add(cred)
+
+    # 5. Create initial sync state
+    sync_state = ConnectorSyncState(connector_id=connector.id)
+    db.add(sync_state)
+
+    await db.commit()
+
+    # 6. Trigger full sync in background
+    try:
+        from connectors.tasks import discover_files_task
+        discover_files_task.delay(connector.id, is_incremental=False)
+        logger.info("Full sync task queued for connector %s", connector.id)
+    except Exception as exc:
+        logger.warning("Could not queue sync task (Celery unavailable?): %s", exc)
 
     return connector
 

@@ -57,6 +57,13 @@ class GCSAdapter(BaseConnector):
             Capability.DELETE_EVENTS,
         }
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "service_account_json", "label": "Service Account JSON (paste contents)", "type": "password", "required": True},
+            {"name": "project_id", "label": "Google Cloud Project ID", "type": "text", "required": True},
+        ]
+
     async def authenticate(self, credentials: Dict[str, Any]) -> None:
         self._credentials_json = credentials.get("service_account_json")
         self._project_id = credentials.get("project_id")

@@ -16,6 +16,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  SiGoogledrive, 
+  SiNotion, 
+  SiConfluence, 
+  SiGithub, 
+  SiDropbox, 
+  SiGooglecloud
+} from 'react-icons/si';
+import { TbBrandOnedrive, TbBrandAzure } from 'react-icons/tb';
+import { FaDatabase, FaFolderOpen, FaAws, FaMicrosoft, FaSlack } from 'react-icons/fa';
+import {
   Cloud,
   RefreshCw,
   Trash2,
@@ -43,6 +53,9 @@ import {
   triggerSync,
   getSyncStatus,
   getConnectorFiles,
+  getConnectorSchemas,
+  connectDirectConnector,
+  ConnectorProvider,
 } from '@/lib/api/connectors';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -158,6 +171,26 @@ function ConnectorFileList({ connectorId }: { connectorId: string }) {
   );
 }
 
+// ── Icons Helper ─────────────────────────────────────────────────────────────
+function getConnectorIcon(provider: string, className: string = "w-4 h-4") {
+  switch (provider) {
+    case 'google_drive': return <SiGoogledrive className={`${className} text-[#1FA463]`} />;
+    case 's3': return <FaAws className={`${className} text-[#FF9900]`} />;
+    case 'notion': return <SiNotion className={`${className} text-black dark:text-white`} />;
+    case 'confluence': return <SiConfluence className={`${className} text-[#172B4D]`} />;
+    case 'slack': return <FaSlack className={`${className} text-[#E01E5A]`} />;
+    case 'github': return <SiGithub className={`${className} text-black dark:text-white`} />;
+    case 'dropbox': return <SiDropbox className={`${className} text-[#0061FF]`} />;
+    case 'sharepoint': return <FaMicrosoft className={`${className} text-[#0078D4]`} />;
+    case 'onedrive': return <TbBrandOnedrive className={`${className} text-[#0078D4]`} />;
+    case 'gcs': return <SiGooglecloud className={`${className} text-[#4285F4]`} />;
+    case 'azure_blob': return <TbBrandAzure className={`${className} text-[#0089D6]`} />;
+    case 'database': return <FaDatabase className={`${className} text-[#336791]`} />;
+    case 'filesystem': return <FaFolderOpen className={`${className} text-[#F8D775]`} />;
+    default: return <Cloud className={`${className} text-muted-foreground`} />;
+  }
+}
+
 // ── Connector Card ─────────────────────────────────────────────────────────────
 
 function ConnectorCard({
@@ -202,12 +235,8 @@ function ConnectorCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {/* Provider icon */}
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#1e88e5]/20 to-[#1565c0]/20 border border-[#1e88e5]/20 flex items-center justify-center flex-shrink-0">
-              {isGoogleDrive ? (
-                <HardDrive className="w-4 h-4 text-[#1e88e5]" />
-              ) : (
-                <Cloud className="w-4 h-4 text-muted-foreground" />
-              )}
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#1e88e5]/5 to-[#1565c0]/5 border border-[#1e88e5]/10 flex items-center justify-center flex-shrink-0">
+              {getConnectorIcon(connector.provider)}
             </div>
 
             <div className="min-w-0">
@@ -336,11 +365,105 @@ function ConnectGoogleDriveButton({ onConnected }: { onConnected: () => void }) 
   );
 }
 
+// ── Direct Connect Modal ───────────────────────────────────────────────────────
+
+function DirectConnectModal({
+  provider,
+  schema,
+  onClose,
+  onConnected,
+}: {
+  provider: string;
+  schema: ConnectorProvider['schema'];
+  onClose: () => void;
+  onConnected: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await connectDirectConnector(provider, formData);
+      onConnected();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to connect');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-[#12181f] border border-[#1e2329] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95">
+        <div className="flex items-center justify-between p-4 border-b border-[#1e2329]">
+          <h3 className="text-sm font-semibold text-foreground capitalize">
+            Connect {provider.replace('_', ' ')}
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {error && (
+            <div className="p-2 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+              {error}
+            </div>
+          )}
+          {schema.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No configuration required.
+            </p>
+          ) : (
+            schema.map(field => (
+              <div key={field.name}>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  {field.label} {field.required && <span className="text-red-400">*</span>}
+                </label>
+                <input
+                  type={field.type === 'password' ? 'password' : 'text'}
+                  required={field.required}
+                  value={formData[field.name] || ''}
+                  onChange={e => setFormData({ ...formData, [field.name]: e.target.value })}
+                  className="w-full bg-[#0d1117] border border-[#1e2329] text-foreground text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-[#1e88e5] transition-colors"
+                />
+              </div>
+            ))
+          )}
+          <div className="pt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 bg-[#1e2329] hover:bg-[#30363d] text-foreground text-xs font-medium rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-2 py-2 bg-[#1e88e5] hover:bg-[#1565c0] text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+              Connect
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Panel ────────────────────────────────────────────────────────────────
 
 export default function ConnectorsPanel() {
   const [connectors, setConnectors] = useState<ConnectorOut[]>([]);
+  const [providers, setProviders] = useState<ConnectorProvider[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeModal, setActiveModal] = useState<ConnectorProvider | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -350,8 +473,12 @@ export default function ConnectorsPanel() {
 
   const fetchConnectors = useCallback(async () => {
     try {
-      const data = await listConnectors();
+      const [data, provs] = await Promise.all([
+        listConnectors(),
+        getConnectorSchemas()
+      ]);
       setConnectors(data);
+      setProviders(provs);
     } catch (err) {
       console.error('Failed to load connectors:', err);
     } finally {
@@ -469,39 +596,49 @@ export default function ConnectorsPanel() {
             </div>
           )}
 
-          {/* Connect Google Drive (only if not already connected) */}
-          {!hasGoogleDrive && (
-            <div className="rounded-xl border border-dashed border-[#30363d] p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#1e88e5]/10 border border-[#1e88e5]/20 flex items-center justify-center">
-                  <HardDrive className="w-4 h-4 text-[#1e88e5]" />
+          {/* Available Connectors */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
+            {providers.map(p => {
+              const isConnected = connectors.some(c => c.provider === p.provider);
+              const isGoogle = p.provider === 'google_drive';
+              if (isConnected && isGoogle) return null; // Don't show Google Drive button if connected
+              return (
+                <div key={p.provider} className="rounded-xl border border-dashed border-[#30363d] p-4 flex flex-col justify-between">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-lg bg-[#1e88e5]/5 border border-[#1e88e5]/10 flex items-center justify-center">
+                      {getConnectorIcon(p.provider)}
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-foreground capitalize">{p.provider.replace('_', ' ')}</p>
+                    </div>
+                  </div>
+                  {isGoogle ? (
+                    <ConnectGoogleDriveButton onConnected={fetchConnectors} />
+                  ) : (
+                    <button
+                      onClick={() => setActiveModal(p)}
+                      disabled={isConnected}
+                      className="w-full py-2 bg-[#1e88e5]/10 hover:bg-[#1e88e5]/20 border border-[#1e88e5]/30 text-[#1e88e5] text-xs font-medium rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {isConnected ? 'Connected' : 'Connect'}
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-foreground">Google Drive</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    Sync PDFs, Docs, Sheets, and more
-                  </p>
-                </div>
-              </div>
-              <ConnectGoogleDriveButton onConnected={fetchConnectors} />
-            </div>
-          )}
-
-          {/* Coming soon */}
-          <div className="grid grid-cols-2 gap-2">
-            {['SharePoint', 'Notion', 'Confluence', 'AWS S3'].map(name => (
-              <div
-                key={name}
-                className="flex items-center gap-2 p-2.5 rounded-lg border border-dashed border-[#1e2329] opacity-40"
-              >
-                <Cloud className="w-3.5 h-3.5 text-muted-foreground" />
-                <div>
-                  <p className="text-[10px] font-medium text-foreground">{name}</p>
-                  <p className="text-[9px] text-muted-foreground">Coming soon</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+
+          {activeModal && (
+            <DirectConnectModal
+              provider={activeModal.provider}
+              schema={activeModal.schema}
+              onClose={() => setActiveModal(null)}
+              onConnected={() => {
+                showToast(`✅ ${activeModal.provider} connected successfully!`);
+                fetchConnectors();
+              }}
+            />
+          )}
         </>
       )}
     </div>

@@ -132,10 +132,10 @@ class SyncStatusOut(BaseModel):
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/providers")
-async def list_providers() -> List[Dict[str, str]]:
-    """List all available connector providers."""
-    providers = ConnectorRegistry.list_providers()
-    return [{"provider": p} for p in providers]
+async def list_providers() -> List[Dict[str, Any]]:
+    """List all available connector providers and their configuration schemas."""
+    schemas = ConnectorRegistry.get_schemas()
+    return [{"provider": p, "schema": schemas.get(p, [])} for p in ConnectorRegistry.list_active()]
 
 
 @router.get("", response_model=List[ConnectorOut])
@@ -166,6 +166,36 @@ async def google_drive_auth(
 
     auth_url = await get_auth_url("google_drive", state=state)
     return {"auth_url": auth_url, "state": state}
+
+class DirectConnectRequest(BaseModel):
+    provider: str
+    credentials: Dict[str, Any]
+    root_folder_id: Optional[str] = None
+    root_folder_name: Optional[str] = None
+
+@router.post("/direct", response_model=ConnectorOut)
+async def connect_direct(
+    req: DirectConnectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ConnectorOut:
+    """
+    Connect a new data source using direct credentials (API keys, bot tokens, etc).
+    """
+    from services.connector_service import connect_connector_direct
+    try:
+        connector = await connect_connector_direct(
+            db=db,
+            user_id=current_user.id,
+            provider=req.provider,
+            credentials=req.credentials,
+            root_folder_id=req.root_folder_id,
+            root_folder_name=req.root_folder_name,
+        )
+        return ConnectorOut.from_orm(connector)
+    except Exception as exc:
+        logger.error(f"Failed to connect {req.provider}: {exc}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/google-drive/callback")

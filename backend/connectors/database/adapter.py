@@ -49,6 +49,15 @@ class DatabaseAdapter(BaseConnector):
             Capability.METADATA_EXTRACTION,
         }
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "connection_string", "label": "Connection String (e.g. postgresql://user:pass@host/db)", "type": "password", "required": True},
+            {"name": "table_name", "label": "Table Name", "type": "text", "required": True},
+            {"name": "pk_column", "label": "Primary Key Column (default: id)", "type": "text", "required": False},
+            {"name": "watermark_column", "label": "Watermark Column (e.g. updated_at)", "type": "text", "required": False},
+        ]
+
     async def authenticate(self, credentials: Dict[str, Any]) -> None:
         if not SQLALCHEMY_AVAILABLE:
             raise ConnectorError("SQLAlchemy is not installed")

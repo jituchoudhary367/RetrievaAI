@@ -171,8 +171,9 @@ function ProviderPanel({
               <button key={meta.id}
                 onClick={() => { setEditTarget(null); setAddingId(meta.id); setModalOpen(true); }}
                 className="flex items-center gap-3 p-3 rounded-xl border border-[#1e2329] bg-[#12181f] hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all text-left group">
-                <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0" style={{ background: `${meta.color}22` }}
-                  dangerouslySetInnerHTML={{ __html: meta.logo }} />
+                <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center p-1" style={{ background: `${meta.color}22` }}>
+                  {meta.logo}
+                </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-white truncate">{meta.name}</p>
                   {meta.isLocal && <span className="text-[9px] text-yellow-400">Local</span>}

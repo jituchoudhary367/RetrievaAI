@@ -57,6 +57,12 @@ class AzureBlobAdapter(BaseConnector):
             Capability.DELETE_EVENTS,
         }
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "connection_string", "label": "Azure Storage Connection String", "type": "password", "required": True},
+        ]
+
     async def authenticate(self, credentials: Dict[str, Any]) -> None:
         self._connection_string = credentials.get("connection_string")
         self._sas_token = credentials.get("sas_token")

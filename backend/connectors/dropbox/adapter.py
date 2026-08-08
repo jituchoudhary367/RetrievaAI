@@ -43,6 +43,12 @@ class DropboxAdapter(BaseConnector):
             Capability.BINARY_FILE_SUPPORT,
         }
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "access_token", "label": "Dropbox Access Token", "type": "password", "required": True},
+        ]
+
     def _headers(self) -> Dict[str, str]:
         return {
             "Authorization": f"Bearer {self._access_token}",

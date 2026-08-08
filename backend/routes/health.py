@@ -10,6 +10,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import datetime
 import logging
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -24,7 +25,12 @@ router = APIRouter(prefix="/health", tags=["health"])
 @router.get("/live", summary="Liveness probe")
 def liveness() -> dict:
     """Return 200 OK. Used by Kubernetes/Docker liveness probes."""
-    return {"status": "ok", "probe": "live"}
+    return {
+        "status": "healthy",
+        "service": "RetrievaAI Backend",
+        "version": "1.0.0",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
 
 
 @router.get("/ready", summary="Readiness probe")

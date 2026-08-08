@@ -40,6 +40,12 @@ class FilesystemAdapter(BaseConnector):
             Capability.DELETE_EVENTS,
         }
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "root_dir", "label": "Absolute Root Directory Path", "type": "text", "required": True},
+        ]
+
     async def authenticate(self, credentials: Dict[str, Any]) -> None:
         self._root_dir = credentials.get("root_dir")
         if not self._root_dir:

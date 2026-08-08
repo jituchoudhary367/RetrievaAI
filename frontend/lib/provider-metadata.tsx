@@ -6,7 +6,7 @@ export type ProviderCapability = 'streaming' | 'vision' | 'json_mode' | 'functio
 export interface LLMProviderMeta {
   id: string;
   name: string;
-  logo: string; // SVG string
+  logo: React.ReactNode;
   color: string; // brand accent
   description: string;
   capabilities: ProviderCapability[];
@@ -18,7 +18,7 @@ export interface LLMProviderMeta {
 export interface EmbeddingProviderMeta {
   id: string;
   name: string;
-  logo: string;
+  logo: React.ReactNode;
   color: string;
   description: string;
   isLocal: boolean;
@@ -29,7 +29,7 @@ export interface EmbeddingProviderMeta {
 export interface SearchProviderMeta {
   id: string;
   name: string;
-  logo: string;
+  logo: React.ReactNode;
   color: string;
   description: string;
   isFree: boolean;
@@ -49,22 +49,29 @@ export interface ProviderField {
   hidden?: boolean; // hide for local providers
 }
 
-// ── SVG Logos ─────────────────────────────────────────────────────────────────
+import React from 'react';
+import {
+  SiGoogle, 
+  SiAnthropic,
+  SiDuckduckgo,
+  SiBrave,
+} from 'react-icons/si';
+import { TbBrandAzure, TbBrandOpenai } from 'react-icons/tb';
 
-const GROQ_LOGO = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#F55036"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold" font-family="sans-serif">G</text></svg>`;
-const OPENAI_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.843-3.372L15.105 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.393-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08-4.778 2.758a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>`;
-const ANTHROPIC_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="4" fill="#CC785C"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="11" font-weight="bold" font-family="sans-serif">A</text></svg>`;
-const GEMINI_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4285F4"/><stop offset="100%" style="stop-color:#EA4335"/></linearGradient></defs><path fill="url(#g1)" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>`;
-const OPENROUTER_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#6C47FF"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold" font-family="sans-serif">OR</text></svg>`;
-const DEEPSEEK_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#0066FF"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold" font-family="sans-serif">DS</text></svg>`;
-const AZURE_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#0089D6" d="M13.05 4.24L6.56 18.05l-3.19.01 6.41-12.57zm.71 0l3.85 9.9-7.65 2.07 7.13-1.56L13.76 4.24zm2.48 11.02l2.17 2.79H5.37l4.15-2.24z"/></svg>`;
-const OLLAMA_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#222"/><circle cx="9" cy="11" r="2" fill="white"/><circle cx="15" cy="11" r="2" fill="white"/><path d="M9 15 Q12 17 15 15" stroke="white" stroke-width="1" fill="none"/></svg>`;
-const COHERE_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#39594D"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold" font-family="sans-serif">CO</text></svg>`;
-const SERPER_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#1E88E5"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold" font-family="sans-serif">Se</text></svg>`;
-const TAVILY_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#00BFA5"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold" font-family="sans-serif">Tv</text></svg>`;
-const BRAVE_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#FB542B"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold" font-family="sans-serif">B</text></svg>`;
-const EXA_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#7C3AED"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold" font-family="sans-serif">Ex</text></svg>`;
-const DDG_LOGO = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#DE5833"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="8" font-weight="bold" font-family="sans-serif">DDG</text></svg>`;
+const GROQ_LOGO = <div className="w-full h-full bg-[#F55036] rounded-full flex items-center justify-center text-white font-bold text-[10px]">G</div>;
+const OPENAI_LOGO = <TbBrandOpenai className="w-full h-full text-[#10b981]" />;
+const ANTHROPIC_LOGO = <SiAnthropic className="w-full h-full text-[#CC785C]" />;
+const GEMINI_LOGO = <SiGoogle className="w-full h-full text-[#4285F4]" />;
+const OPENROUTER_LOGO = <div className="w-full h-full bg-[#6C47FF] rounded-full flex items-center justify-center text-white font-bold text-[9px]">OR</div>;
+const DEEPSEEK_LOGO = <div className="w-full h-full bg-[#0066FF] rounded-full flex items-center justify-center text-white font-bold text-[9px]">DS</div>;
+const AZURE_LOGO = <TbBrandAzure className="w-full h-full text-[#0078d4]" />;
+const OLLAMA_LOGO = <div className="w-full h-full bg-[#222] rounded-full flex items-center justify-center relative"><div className="w-1 h-1 bg-white rounded-full absolute left-2.5 top-2.5"></div><div className="w-1 h-1 bg-white rounded-full absolute right-2.5 top-2.5"></div><div className="absolute bottom-2.5 w-3 h-1.5 border-b-2 border-white rounded-full"></div></div>;
+const COHERE_LOGO = <div className="w-full h-full bg-[#39594D] rounded-full flex items-center justify-center text-white font-bold text-[9px]">CO</div>;
+const SERPER_LOGO = <div className="w-full h-full bg-[#1E88E5] rounded-full flex items-center justify-center text-white font-bold text-[9px]">Se</div>;
+const TAVILY_LOGO = <div className="w-full h-full bg-[#00BFA5] rounded-full flex items-center justify-center text-white font-bold text-[9px]">Tv</div>;
+const BRAVE_LOGO = <SiBrave className="w-full h-full text-[#FB542B]" />;
+const EXA_LOGO = <div className="w-full h-full bg-[#7C3AED] rounded-full flex items-center justify-center text-white font-bold text-[9px]">Ex</div>;
+const DDG_LOGO = <SiDuckduckgo className="w-full h-full text-[#DE5833]" />;
 
 // ── LLM Provider Metadata ─────────────────────────────────────────────────────
 

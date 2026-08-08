@@ -159,5 +159,13 @@ class BaseConnector(ABC):
         """Override to False if the provider doesn't have a changes API."""
         return True
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        """
+        Return the schema for credentials required by this connector.
+        Example: [{"name": "api_key", "label": "API Key", "type": "password", "required": True}]
+        """
+        return []
+
 
 __all__ = ["BaseConnector"]

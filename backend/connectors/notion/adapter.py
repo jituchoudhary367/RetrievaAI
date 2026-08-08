@@ -37,6 +37,12 @@ class NotionAdapter(BaseConnector):
             Capability.BINARY_FILE_SUPPORT,
         }
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "access_token", "label": "Notion Internal Integration Token (secret_...)", "type": "password", "required": True},
+        ]
+
     def _headers(self) -> Dict[str, str]:
         return {
             "Authorization": f"Bearer {self._access_token}",

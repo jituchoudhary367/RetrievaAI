@@ -62,6 +62,14 @@ class S3Adapter(BaseConnector):
             Capability.DELETE_EVENTS,
         }
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "aws_access_key_id", "label": "AWS Access Key ID", "type": "text", "required": True},
+            {"name": "aws_secret_access_key", "label": "AWS Secret Access Key", "type": "password", "required": True},
+            {"name": "region", "label": "AWS Region (e.g., us-east-1)", "type": "text", "required": False},
+        ]
+
     async def authenticate(self, credentials: Dict[str, Any]) -> None:
         self._aws_access_key_id = credentials.get("aws_access_key_id")
         self._aws_secret_access_key = credentials.get("aws_secret_access_key")

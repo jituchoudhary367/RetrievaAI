@@ -40,6 +40,12 @@ class GithubAdapter(BaseConnector):
             # In the future, Capability.ISSUES or Capability.TICKETS could be added here
         }
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return [
+            {"name": "access_token", "label": "GitHub Personal Access Token (PAT)", "type": "password", "required": True},
+        ]
+
     def _headers(self) -> Dict[str, str]:
         return {
             "Authorization": f"Bearer {self._access_token}",

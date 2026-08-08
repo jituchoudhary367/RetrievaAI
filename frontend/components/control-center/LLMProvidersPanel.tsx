@@ -55,8 +55,9 @@ function ProviderCard({ provider, onTest, onEdit, onDelete, onSetDefault, testin
           <div
             className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
             style={{ background: `${meta?.color ?? '#333'}22` }}
-            dangerouslySetInnerHTML={{ __html: meta?.logo ?? '' }}
-          />
+          >
+            {meta?.logo}
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-white">{provider.display_name}</span>
@@ -238,10 +239,11 @@ export function LLMProvidersPanel() {
                 className="flex items-center gap-3 p-3 rounded-xl border border-[#1e2329] bg-[#12181f] hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all text-left group"
               >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0 p-1"
                   style={{ background: `${meta.color}22` }}
-                  dangerouslySetInnerHTML={{ __html: meta.logo }}
-                />
+                >
+                  {meta.logo}
+                </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-white truncate">{meta.name}</p>
                   {meta.isLocalOnly && (

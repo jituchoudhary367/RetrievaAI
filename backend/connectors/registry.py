@@ -39,6 +39,8 @@ class ConnectorRegistry:
             capabilities=capabilities,
             enabled=True
         )
+        # We attach the schema directly to the entry class for easy retrieval
+        entry.schema = connector_class.get_credentials_schema()
         cls._entries[provider_name] = entry
         logger.debug(f"Registered connector: {provider_name} v{version} ({len(capabilities)} capabilities)")
 
@@ -69,6 +71,14 @@ class ConnectorRegistry:
     @classmethod
     def list_active(cls) -> List[str]:
         return [name for name, entry in cls._entries.items() if entry.enabled]
+        
+    @classmethod
+    def get_schemas(cls) -> Dict[str, list[dict]]:
+        """Return the credential schemas for all active connectors."""
+        return {
+            name: getattr(entry, "schema", []) 
+            for name, entry in cls._entries.items() if entry.enabled
+        }
         
     @classmethod
     def get_entry(cls, provider_name: str) -> ConnectorRegistryEntry:

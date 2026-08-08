@@ -65,7 +65,14 @@ def download_and_enqueue_task(self, connector_id: str, remote_file_id: str, acce
         
         # Authenticate
         async def _download():
-            await adapter.authenticate({"access_token": access_token})
+            import json
+            try:
+                creds = json.loads(access_token)
+                if not isinstance(creds, dict):
+                    creds = {"access_token": access_token}
+            except Exception:
+                creds = {"access_token": access_token}
+            await adapter.authenticate(creds)
             return await adapter.download_file(remote_file_id)
 
         content_bytes = asyncio.run(_download())

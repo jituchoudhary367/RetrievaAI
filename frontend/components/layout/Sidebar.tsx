@@ -106,7 +106,6 @@ export function Sidebar({
         <NavItem href="/search" icon={Search} label="Search" />
         <NavItem href="/documents" icon={FileText} label="Documents" />
         <NavItem href="/ingestion" icon={DownloadCloud} label="Ingestion" />
-        <NavItem href="/connectors" icon={Hexagon} label="Connectors" />
         <NavItem href="/analytics" icon={BarChart2} label="Analytics" />
         <NavItem href="/tools" icon={Wrench} label="Tools" />
         <NavItem href="/settings" icon={Settings} label="Settings" />

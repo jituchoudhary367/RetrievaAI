@@ -29,7 +29,14 @@ class ConnectorOrchestrator:
         
         # Instantiate an event loop just for discovery
         async def _run():
-            await adapter.authenticate({"access_token": access_token})
+            import json
+            try:
+                creds = json.loads(access_token)
+                if not isinstance(creds, dict):
+                    creds = {"access_token": access_token}
+            except Exception:
+                creds = {"access_token": access_token}
+            await adapter.authenticate(creds)
             
             # Persist sync state
             if connector.sync_state:
@@ -107,7 +114,14 @@ class ConnectorOrchestrator:
             return
 
         async def _run():
-            await adapter.authenticate({"access_token": access_token})
+            import json
+            try:
+                creds = json.loads(access_token)
+                if not isinstance(creds, dict):
+                    creds = {"access_token": access_token}
+            except Exception:
+                creds = {"access_token": access_token}
+            await adapter.authenticate(creds)
             
             if connector.sync_state:
                 connector.sync_state.last_sync_started_at = datetime.now(timezone.utc)

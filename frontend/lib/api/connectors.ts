@@ -113,3 +113,27 @@ export async function getConnectorAnalytics(): Promise<{
 }> {
   return apiFetch('/api/analytics/connectors');
 }
+
+export interface ConnectorProvider {
+  provider: string;
+  schema: Array<{
+    name: string;
+    label: string;
+    type: string;
+    required: boolean;
+  }>;
+}
+
+export async function getConnectorSchemas(): Promise<ConnectorProvider[]> {
+  return apiFetch<ConnectorProvider[]>('/api/connectors/providers');
+}
+
+export async function connectDirectConnector(
+  provider: string,
+  credentials: Record<string, any>
+): Promise<ConnectorOut> {
+  return apiFetch<ConnectorOut>('/api/connectors/direct', {
+    method: 'POST',
+    body: JSON.stringify({ provider, credentials }),
+  });
+}

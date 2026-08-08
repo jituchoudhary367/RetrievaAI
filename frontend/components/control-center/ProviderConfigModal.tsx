@@ -215,10 +215,11 @@ export function ProviderConfigModal({ providerType, existingProvider, initialPro
                     }`}
                   >
                     <div
-                      className="w-7 h-7 rounded-lg shrink-0 overflow-hidden"
+                      className="w-7 h-7 rounded-lg shrink-0 overflow-hidden flex items-center justify-center p-1"
                       style={{ background: `${p.color}22` }}
-                      dangerouslySetInnerHTML={{ __html: p.logo }}
-                    />
+                    >
+                      {p.logo}
+                    </div>
                     <span className="text-xs font-medium truncate">{p.name}</span>
                     {p.isLocalOnly && <span className="text-[9px] text-yellow-400 ml-auto shrink-0">Local</span>}
                   </button>
