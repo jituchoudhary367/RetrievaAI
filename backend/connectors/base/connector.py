@@ -16,6 +16,14 @@ class BaseConnector(ABC):
         """Unique provider identifier, e.g. 'google_drive'."""
         pass
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        """
+        Return the schema for credentials required by this connector.
+        Example: [{"name": "api_key", "label": "API Key", "type": "password", "required": True}]
+        """
+        return []
+
     @abstractmethod
     async def authenticate(self, credentials: Dict[str, Any]) -> None:
         pass

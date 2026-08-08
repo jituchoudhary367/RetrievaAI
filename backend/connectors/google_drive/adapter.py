@@ -26,6 +26,10 @@ class GoogleDriveConnector(BaseConnector):
     def provider_name(self) -> str:
         return "google_drive"
 
+    @classmethod
+    def get_credentials_schema(cls) -> list[dict]:
+        return []
+
     def capabilities(self) -> CapabilitySet:
         return {
             Capability.OAUTH,
