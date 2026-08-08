@@ -66,6 +66,7 @@ def readiness() -> JSONResponse:
         client = QdrantClient(
             host=settings.qdrant.host,
             port=settings.qdrant.port,
+            # pyrefly: ignore [bad-argument-type]
             timeout=5.0,
             api_key=settings.qdrant.api_key,
         )
